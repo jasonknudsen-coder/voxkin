@@ -41,7 +41,13 @@ test('server requires conversation, routes new/resumed turns separately, persist
   const send=(id,n)=>({op:'send',conversationId:id,text:'Question',requestId:`request-000000000${n}`});
   await assert.rejects(server.request('a',{op:'send',text:'No id',requestId:'request-000000001'}),rejected('INVALID_REQUEST'));
   await assert.rejects(server.request('b',send(c.id,0)),rejected('DENIED'));
-  for(const [id,n]of [[c.id,1],[d.id,2],[c.id,3]]){await server.request('a',send(id,n));await new Promise(r=>setTimeout(r,10));}
+  for(const [id,n]of [[c.id,1],[d.id,2],[c.id,3]]){
+    const {runId}=await server.request('a',send(id,n));
+    const deadline=Date.now()+5000;let result;
+    do {result=await server.request('a',{op:'poll',runId});if(result.state!=='working')break;await new Promise(r=>setTimeout(r,5));} while(Date.now()<deadline);
+    assert.equal(result.state,'final','turn must finish its durable history write');
+    await new Promise(r=>setImmediate(r));
+  }
   assert.deepEqual(routes,[c.id,d.id,c.id]);assert.equal(h.messages(a,{conversationId:c.id}).messages.length,4);
   revoked=true;
   for(const body of [{op:'history.list'},{op:'history.create'},{op:'history.messages',conversationId:c.id}])await assert.rejects(server.request('a',body),rejected('unauthorized'));
