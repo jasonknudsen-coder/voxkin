@@ -1,0 +1,21 @@
+# Isolated Linux qualification image; not a public review service.
+FROM node:24-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS node
+FROM python:3.13-slim-bookworm@sha256:a1165e272e578941b84abc79e4ab38a0305cd12803a5c4247979ac7655f4d641
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && apt-get update && apt-get install -y --no-install-recommends ca-certificates git libsndfile1 \
+ && rm -rf /var/lib/apt/lists/*
+RUN npm install -g openclaw@2026.9.7 --omit=dev --no-audit --no-fund
+COPY plugin /opt/voxkin/plugin
+RUN python -m venv /opt/voxkin/voice/.venv \
+ && /opt/voxkin/voice/.venv/bin/pip install --no-cache-dir -r /opt/voxkin/plugin/requirements.txt
+COPY ops/review-gateway/prepare-linux-trial.py /opt/voxkin/prepare-linux-trial.py
+RUN /opt/voxkin/voice/.venv/bin/python /opt/voxkin/prepare-linux-trial.py
+COPY ops/review-gateway/voice-probe.mjs /opt/voxkin/voice-probe.mjs
+RUN groupadd -g 10001 voxkin && useradd -u 10001 -g voxkin -m voxkin \
+ && chmod -R a+rX /opt/voxkin
+ENV HOME=/home/voxkin OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+USER 10001:10001
+WORKDIR /opt/voxkin
+CMD ["node", "/opt/voxkin/voice-probe.mjs"]

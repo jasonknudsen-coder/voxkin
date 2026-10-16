@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 270 800 425" role="img" aria-labelledby="title">
+  <title id="title">Voxkin: ribbon V with two voice bars on each side</title>
+  <defs>
+    <linearGradient id="rear" gradientUnits="userSpaceOnUse" x1="700" y1="280" x2="500" y2="680"><stop stop-color="#EE67F7"/><stop offset=".5" stop-color="#7939FF"/><stop offset="1" stop-color="#4932F5"/></linearGradient>
+    <linearGradient id="front" gradientUnits="userSpaceOnUse" x1="330" y1="285" x2="530" y2="685"><stop stop-color="#12D9EC"/><stop offset=".5" stop-color="#087EFF"/><stop offset="1" stop-color="#04CBEA"/></linearGradient>
+    <linearGradient id="leftShort" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#12D9EC"/><stop offset="1" stop-color="#087EFF"/></linearGradient>
+    <linearGradient id="right" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#EE67F7"/><stop offset="1" stop-color="#7939FF"/></linearGradient>
+  </defs>
+  <path fill="url(#rear)" d="M330 285 C290 285 264 324 285 361 L435 634 C471 699 549 699 588 633 L737 361 C760 319 735 281 696 281 C674 281 657 291 645 313 L513 547 L382 313 C370 294 352 285 330 285Z"/>
+  <path fill="url(#front)" d="M330 285 C290 285 264 324 285 361 L435 634 C471 699 549 699 588 633 L613 588 C576 633 541 597 513 547 L382 313 C370 294 352 285 330 285Z"/>
+  <g fill="url(#leftShort)"><rect x="110" y="448" width="42" height="104" rx="21"/><rect x="175" y="410" width="42" height="180" rx="21"/></g>
+  <g fill="url(#right)"><rect x="783" y="410" width="42" height="180" rx="21"/><rect x="848" y="448" width="42" height="104" rx="21"/></g>
+</svg>

@@ -1,0 +1,8 @@
+FROM voxkin-review-trial:20261014
+USER root
+COPY plugin /opt/voxkin/plugin
+COPY ops/review-gateway /opt/voxkin/ops/review-gateway
+COPY plugin /opt/voxkin/ops/review-gateway/review-plugin/lib
+RUN chmod -R a+rX /opt/voxkin/plugin /opt/voxkin/ops/review-gateway
+USER 10001:10001
+CMD ["node","/opt/voxkin/ops/review-gateway/appliance.mjs","gateway"]

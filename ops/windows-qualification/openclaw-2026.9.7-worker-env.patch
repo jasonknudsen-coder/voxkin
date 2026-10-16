@@ -1,0 +1,13 @@
+--- a/dist/worker-task-pool-CqZMVo9-.mjs
++++ b/dist/worker-task-pool-CqZMVo9-.mjs
+@@ -650,7 +650,9 @@
+ 		task.preparedAt = performance.now();
+ 		try {
+ 			const worker = slot.worker ?? this.createWorker(slot);
+-			const transferList = task.options.transferList?.(input);
++			// Voxkin native qualification compatibility: snapshot environment data at worker boundary.
++if (process.platform === "win32" && input?.request?.env && typeof input.request.env === "object") input = {...input, request: {...input.request, env: {...input.request.env}}};
++const transferList = task.options.transferList?.(input);
+ 			if (!task.done) {
+ 				const transferStartedAt = performance.now();
+ 				worker.postMessage({

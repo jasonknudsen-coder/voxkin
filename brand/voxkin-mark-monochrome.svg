@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 270 800 425" role="img" aria-labelledby="title">
+  <title id="title">Voxkin: ribbon V with two voice bars on each side</title>
+  <path fill="currentColor" d="M330 285 C290 285 264 324 285 361 L435 634 C471 699 549 699 588 633 L737 361 C760 319 735 281 696 281 C674 281 657 291 645 313 L513 547 L382 313 C370 294 352 285 330 285Z"/>
+  <path fill="currentColor" d="M330 285 C290 285 264 324 285 361 L435 634 C471 699 549 699 588 633 L613 588 C576 633 541 597 513 547 L382 313 C370 294 352 285 330 285Z"/>
+  <g fill="currentColor"><rect x="110" y="448" width="42" height="104" rx="21"/><rect x="175" y="410" width="42" height="180" rx="21"/></g>
+  <g fill="currentColor"><rect x="783" y="410" width="42" height="180" rx="21"/><rect x="848" y="448" width="42" height="104" rx="21"/></g>
+</svg>

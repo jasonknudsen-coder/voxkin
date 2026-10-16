@@ -1,0 +1,18 @@
+# Candidate only: separate production approval required before activation.
+review.example.com {
+    encode zstd gzip
+    header X-Robots-Tag "noindex, nofollow"
+    @review {
+        path /voxkin/v1
+        method POST
+    }
+    handle @review {
+        request_body {
+            max_size 70KB
+        }
+        reverse_proxy 127.0.0.1:18149
+    }
+    handle {
+        respond "Not found" 404
+    }
+}

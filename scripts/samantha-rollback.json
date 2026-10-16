@@ -1,0 +1,14 @@
+{
+  "command": "say",
+  "args": [
+    "-v",
+    "Samantha",
+    "--file-format=WAVE",
+    "--data-format=LEI16@22050",
+    "-o",
+    "{{OutputPath}}",
+    "{{Text}}"
+  ],
+  "outputFormat": "wav",
+  "timeoutMs": 120000
+}

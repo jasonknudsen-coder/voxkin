@@ -1,0 +1,13 @@
+# Complete private gateway candidate atop the qualified Ubuntu runtime.
+# Build wrapper must verify the local tag equals sha256:e4336c662bc174160ec4832ca7c656c810256641a41443194b4cda935b230f61
+FROM voxkin-ubuntu-qualification:20261015
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+ && rm -rf /var/lib/apt/lists/* \
+ && npm install -g openclaw@2026.9.7 --omit=dev --no-audit --no-fund
+COPY plugin /opt/voxkin/plugin
+COPY ops/review-gateway /opt/voxkin/ops/review-gateway
+COPY plugin /opt/voxkin/ops/review-gateway/review-plugin/lib
+RUN chmod -R a+rX /opt/voxkin/plugin /opt/voxkin/ops/review-gateway
+USER 10001:10001
+CMD ["node","/opt/voxkin/ops/review-gateway/appliance.mjs","gateway"]

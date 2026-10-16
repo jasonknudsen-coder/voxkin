@@ -1,0 +1,57 @@
+{
+  "name": "@voxkin/openclaw-local-voice",
+  "version": "0.4.1",
+  "private": true,
+  "type": "module",
+  "description": "Local voices and opt-in restricted phone access for Voxkin",
+  "license": "Apache-2.0",
+  "files": [
+    "index.js",
+    "runtime.js",
+    "worker.py",
+    "setup.py",
+    "requirements.txt",
+    "openclaw.plugin.json",
+    "README.md",
+    "THIRD_PARTY_NOTICES.md",
+    "voices.json",
+    "LICENSE",
+    "access/README.md",
+    "access/store.js",
+    "restricted/server.js",
+    "restricted/register.js",
+    "restricted/dispatch.js",
+    "prepare-package.js",
+    "onboard.mjs",
+    "restricted/history.js",
+    "restricted/HISTORY.md",
+    "access/windows-files.js",
+    "restricted/windows-dispatch.js"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js access/*.test.js restricted/*.test.js",
+    "prepack": "node prepare-package.js",
+    "test:setup": "python3.13 -m unittest discover -s test -p \"test_*.py\""
+  },
+  "peerDependencies": {
+    "openclaw": "2026.9.7"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ],
+    "install": {
+      "minHostVersion": ">=2026.9.7"
+    },
+    "compat": {
+      "pluginApi": ">=2026.9.7"
+    }
+  },
+  "dependencies": {
+    "qrcode": "1.5.4"
+  },
+  "devDependencies": {
+    "jsqr": "1.4.0",
+    "pngjs": "5.0.0"
+  }
+}

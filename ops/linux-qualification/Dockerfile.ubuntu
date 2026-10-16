@@ -1,0 +1,29 @@
+# Ubuntu-built CPython; host system Python and review service remain untouched.
+FROM node:24-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS node
+FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS python-build
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential ca-certificates curl xz-utils libssl-dev zlib1g-dev libffi-dev libbz2-dev liblzma-dev libsqlite3-dev libreadline-dev libncurses-dev uuid-dev
+RUN curl -fsSL https://www.python.org/ftp/python/3.13.16/Python-3.13.16.tar.xz -o /tmp/python.tar.xz \
+ && echo 'f4b1bfb3c79b5bb11b8d228a12504163b4c0dab4d679828d8f5f26b6cb6ab35d  /tmp/python.tar.xz' | sha256sum -c - \
+ && mkdir /src && tar -xJf /tmp/python.tar.xz -C /src --strip-components=1 \
+ && cd /src && ./configure --prefix=/opt/cpython --with-ensurepip=install && make -j2 && make altinstall
+FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55
+COPY --from=python-build /opt/cpython /opt/cpython
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+ENV PATH=/opt/cpython/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && apt-get update && apt-get install -y --no-install-recommends ca-certificates passwd libsndfile1 libssl3t64 zlib1g libffi8 libbz2-1.0 liblzma5 libsqlite3-0 libreadline8t64 libncursesw6 libuuid1 \
+ && rm -rf /var/lib/apt/lists/* \
+ && python3.13 -c 'import ssl,venv,ensurepip,ctypes,bz2,lzma,sqlite3,readline; print(ssl.OPENSSL_VERSION)'
+COPY plugin /opt/source/plugin
+RUN cd /opt/source/plugin && npm pack --pack-destination /tmp \
+ && npm install --prefix /opt/qualification --omit=dev --ignore-scripts --legacy-peer-deps /tmp/voxkin-openclaw-local-voice-*.tgz
+RUN groupadd -g 10001 voxkin && useradd -u 10001 -g voxkin -m voxkin \
+ && install -d -o 10001 -g 10001 /opt/voxkin/voice
+COPY --chmod=0644 ops/linux-qualification/probe.mjs /opt/qualification/probe.mjs
+ENV HOME=/home/voxkin OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+USER 10001:10001
+RUN python3.13 /opt/qualification/node_modules/@voxkin/openclaw-local-voice/setup.py \
+ --runtime-dir /opt/voxkin/voice --experimental-linux --install --smoke-test --container-timestamps
+WORKDIR /opt/qualification
+CMD ["node", "probe.mjs"]

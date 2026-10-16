@@ -1,0 +1,25 @@
+#!/bin/sh
+# Install as the app's ops/health-check after activation. Existing host timer
+# invokes these hooks and reports failed health through its existing monitor.
+set -eu
+root=${GAME_DIR:?protected application directory required}
+prefix=${VOXKIN_HEALTH_PREFIX:-voxkin-review}
+suffix=${VOXKIN_HEALTH_SUFFIX:--1}
+for role in relay gateway ingress; do
+  name=$prefix-$role$suffix
+  [ "$(docker inspect "$name" --format '{{.State.Running}}')" = true ]
+  docker exec "$name" node /opt/voxkin/ops/review-gateway/health.mjs "$role"
+done
+# Read accounting as the container owner; the host monitor runs as deploy.
+# Do not relax permissions on the protected budget directory.
+count=$(docker exec "$prefix-relay$suffix" node -e 'const fs=require("node:fs"); const p="/budget/usage.json"; process.stdout.write(JSON.stringify(fs.existsSync(p)?JSON.parse(fs.readFileSync(p,"utf8")).total:0));')
+python3 - "$root" "$count" <<'PY'
+import json,sys,time
+from pathlib import Path
+root=Path(sys.argv[1])
+expiry=int((root/'expires-at').read_text().strip())
+if expiry-time.time()<86400: raise SystemExit('Review expiry is less than24hours away; operator action required.')
+count=json.loads(sys.argv[2])
+if type(count) is not int or not 0<=count<85: raise SystemExit('Review request allowance requires operator attention.')
+print('VOXKIN_REVIEW_HEALTH=OK requests='+str(count))
+PY
