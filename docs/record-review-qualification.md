@@ -1,6 +1,6 @@
 # Phone recording review flow
 
-Local candidate: 1.0 (14), October 17, 2026. Not uploaded or released by this qualification.
+TestFlight candidate: 1.0 (14), October 17, 2026. After explicit owner authorization, uploaded successfully and verified VALID / IN_BETA_TESTING with the internal test group. Public App Store release unchanged.
 
 ## Behavior
 
