@@ -1239,6 +1239,38 @@ import VoiceCore
         XCTAssertEqual(preferences.string(forKey: "reply-length"), "brief")
         restored.disconnect()
     }
+    func testStopAndReviewPreservesFinalWordsWithoutSending() async {
+        let transport = ControlledGateway(), capture = ControlledCapture()
+        let model = VoiceModel(restoreConnection: false, capture: capture, mockFactory: { transport })
+        await model.connect(); await model.record()
+        XCTAssertTrue(model.microphoneReady)
+        capture.text?("The final word is")
+        model.finishRecording(); model.finishRecording()
+        XCTAssertFalse(model.microphoneReady)
+        XCTAssertTrue(model.finishingSpeech)
+        XCTAssertEqual(capture.finishCount, 1)
+        capture.text?("The final word is pineapple"); capture.end?(nil)
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertFalse(model.finishingSpeech)
+        XCTAssertEqual(model.draft, "The final word is pineapple")
+        XCTAssertFalse(transport.calls.contains("chat.send"))
+        model.send()
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(transport.calls.filter { $0 == "chat.send" }.count, 1)
+        model.disconnect()
+    }
+    func testDiscardWhileFinalizingReviewIgnoresLateRecognition() async {
+        let transport = ControlledGateway(), capture = ControlledCapture()
+        let model = VoiceModel(restoreConnection: false, capture: capture, mockFactory: { transport })
+        await model.connect(); await model.record(); capture.text?("Discard me")
+        let lateText = capture.text, lateEnd = capture.end
+        model.finishRecording(); model.clearDraft()
+        lateText?("Late words"); lateEnd?(nil)
+        XCTAssertTrue(model.draft.isEmpty)
+        XCTAssertFalse(model.microphoneReady); XCTAssertFalse(model.finishingSpeech)
+        XCTAssertFalse(transport.calls.contains("chat.send"))
+        model.disconnect()
+    }
     func testExplicitDictationSendWaitsForFinalWordsAndSubmitsOnce() async {
         let transport = ControlledGateway(), capture = ControlledCapture()
         let model = VoiceModel(restoreConnection: false, capture: capture, mockFactory: { transport })

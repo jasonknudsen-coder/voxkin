@@ -216,7 +216,7 @@ struct VoiceView: View {
                                     VStack(spacing: 10) {
                                         Text("Talk to your agent.")
                                             .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                                        Text(model.endpoint.isEmpty && !model.connected ? "Your voice. Your agent.\nAdd your gateway in Settings to get started." : "A little less typing. A little more talking.\nTap the mic, then tap again to send.")
+                                        Text(model.endpoint.isEmpty && !model.connected ? "Your voice. Your agent.\nAdd your gateway in Settings to get started." : "A little less typing. A little more talking.\nTap to record. Stop to review. Then send.")
                                             .font(.body).foregroundStyle(.secondary)
                                     }
                                 }.multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(.vertical, 20)
@@ -269,7 +269,22 @@ struct VoiceView: View {
                 Text(model.status).font(.caption).foregroundStyle(.secondary).lineLimit(3).accessibilityIdentifier("status")
                 if working, !model.previewing, let start = model.turnStartedAt { Text(start, style: .timer).font(.caption.monospacedDigit()).foregroundStyle(.secondary) }
             }.frame(maxWidth: .infinity)
-            if typing || recording || model.finishingSpeech {
+            if recording && !model.finishingSpeech {
+                HStack(spacing: 8) {
+                    if model.microphoneReady {
+                        Image(systemName: "waveform")
+                            .symbolEffect(.pulse, options: .repeating)
+                            .foregroundStyle(accent)
+                        Text(hasDraft ? "Listening · words detected" : "Listening · speak now")
+                    } else {
+                        ProgressView()
+                        Text("Getting microphone ready…")
+                    }
+                }
+                .font(.caption).accessibilityElement(children: .combine)
+                .accessibilityIdentifier("recordingIndicator")
+            }
+            if typing || recording || model.finishingSpeech || hasDraft {
                 HStack(alignment: .center, spacing: 8) {
                     HStack(spacing: 0) {
                     TextField("Message your agent", text: $model.draft, axis: .vertical)
@@ -286,16 +301,18 @@ struct VoiceView: View {
                     }.padding(.leading, 14).padding(.vertical, 6)
                         .frame(minHeight: 56)
                         .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
+                    if !recording && !model.finishingSpeech {
                     Button { draftFocused = false; model.send() } label: { Image(systemName: "arrow.up.circle.fill").font(.title).frame(width: 44, height: 44) }
                         .accessibilityLabel("Send message").accessibilityIdentifier("send")
                         .disabled(!idle || !model.connected || model.activeRun != nil || model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !model.acceptedFallback)
+                    }
                 }
             }
             HStack(spacing: 28) {
                 Button { model.endConversation(); typing.toggle(); draftFocused = typing } label: { Image(systemName: typing ? "keyboard.chevron.compact.down" : "keyboard").font(.title2).frame(width: 48, height: 48) }
                     .accessibilityLabel("Type instead").accessibilityIdentifier("typeInstead")
                 Button(action: primaryAction) {
-                    Image(systemName: (recording || (model.connected && hasDraft)) ? "arrow.up" : (model.connected ? "mic.fill" : "bolt.horizontal.fill"))
+                    Image(systemName: recording ? (model.conversationMode ? "arrow.up" : "stop.fill") : ((model.connected && hasDraft) ? "arrow.up" : (model.connected ? "mic.fill" : "bolt.horizontal.fill")))
                         .font(.system(size: 36, weight: .medium)).foregroundStyle(.white)
                         .frame(width: 108, height: 108)
                         .background(LinearGradient(colors: recording ? [.orange, .pink] : [VoxkinBrand.cyan, VoxkinBrand.blue, VoxkinBrand.purple], startPoint: .topLeading, endPoint: .bottomTrailing), in: Circle())
@@ -313,13 +330,17 @@ struct VoiceView: View {
                     }
                 })
                 .accessibilityAction(named: "Start hands-free conversation") { Task { await model.startConversation() } }
-                .disabled((model.busy || working || model.finishingSpeech || (model.activeRun != nil && !recording)) && !model.canInterruptConversationReply)
+                .disabled((model.busy || working || model.finishingSpeech || (recording && !model.microphoneReady) || (model.activeRun != nil && !recording)) && !model.canInterruptConversationReply)
                 .opacity((model.busy || working) && !model.canInterruptConversationReply ? 0.5 : 1)
-                .accessibilityLabel(model.canInterruptConversationReply ? "Interrupt reply and listen" : recording ? "Finish and send" : (model.connected ? (hasDraft ? "Send draft to agent" : "Talk to agent") : "Connect to gateway"))
+                .accessibilityLabel(model.canInterruptConversationReply ? "Interrupt reply and listen" : recording ? (model.conversationMode ? "Finish and send" : "Stop recording and review") : (model.connected ? (hasDraft ? "Send draft to agent" : "Talk to agent") : "Connect to gateway"))
                 .accessibilityIdentifier("talkButton")
-                Button { draftFocused = false; model.stopPlayback() } label: {
-                    Image(systemName: "stop.fill").font(.title2).frame(width: 48, height: 48)
-                }.accessibilityLabel("Stop audio").accessibilityIdentifier("stopAudio")
+                Button {
+                    draftFocused = false
+                    if (recording || model.finishingSpeech) && !model.conversationMode { model.clearDraft() }
+                    else { model.stopPlayback() }
+                } label: {
+                    Image(systemName: (recording || model.finishingSpeech) && !model.conversationMode ? "xmark" : "stop.fill").font(.title2).frame(width: 48, height: 48)
+                }.accessibilityLabel((recording || model.finishingSpeech) && !model.conversationMode ? "Cancel recording" : "Stop audio").accessibilityIdentifier("stopAudio")
                     .disabled(!model.connected)
             }
             if !model.conversationMode && model.canStartConversation {
@@ -331,7 +352,7 @@ struct VoiceView: View {
                 Text("Tap the mic to interrupt and listen").font(.caption).foregroundStyle(accent)
             }
             HStack {
-                Text(model.finishingSpeech ? "Finishing…" : (recording ? "Tap again to send" : (model.connected && !model.acceptedFallback ? "Enable speech in Settings" : (model.connected ? (hasDraft ? "Tap to send your draft" : "Tap to talk") : (model.endpoint.isEmpty ? "Set up your gateway" : "Tap to connect"))))).font(.caption).foregroundStyle(.secondary)
+                Text(model.finishingSpeech ? "Finishing…" : (recording ? (model.microphoneReady ? (model.conversationMode ? "Pause to send · tap to finish" : "Listening · tap Stop to review") : "Opening microphone…") : (model.connected && !model.acceptedFallback ? "Enable speech in Settings" : (model.connected ? (hasDraft ? "Tap to send your draft" : "Tap to talk") : (model.endpoint.isEmpty ? "Set up your gateway" : "Tap to connect"))))).font(.caption).foregroundStyle(.secondary)
                 if model.activeRun != nil {
                     Spacer()
                     Button("Cancel request") { Task { await model.cancelAgent() } }.font(.caption).accessibilityIdentifier("cancelRequest")
@@ -344,7 +365,10 @@ struct VoiceView: View {
     private func primaryAction() {
         draftFocused = false
         if model.canInterruptConversationReply { Task { await model.interruptConversationReply() } }
-        else if recording { model.finishAndSend() }
+        else if recording {
+            if model.conversationMode { model.finishAndSend() }
+            else { model.finishRecording() }
+        }
         else if !model.connected {
             if model.endpoint.isEmpty { tab = 1 }
             else { Task { await model.connect() } }

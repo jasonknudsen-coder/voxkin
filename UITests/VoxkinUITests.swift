@@ -1,5 +1,18 @@
 import XCTest
 final class VoxkinUITests: XCTestCase {
+    func testPhoneRecordingShowsStopAndNeverSendWhileListening() {
+        let app = XCUIApplication(); app.launchArguments = ["-ui-testing-conversation"]; app.launch()
+        let mic = app.buttons["talkButton"]
+        XCTAssertTrue(mic.waitForExistence(timeout: 10)); mic.tap()
+        XCTAssertTrue(app.staticTexts["Listening · speak now"].waitForExistence(timeout: 5))
+        XCTAssertEqual(mic.label, "Stop recording and review")
+        XCTAssertFalse(app.buttons["send"].exists)
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "phone-listening-stop"; shot.lifetime = .keepAlways; add(shot)
+        mic.tap()
+        XCTAssertTrue(app.staticTexts["No words captured. Tap the mic to try again, or type a message."].waitForExistence(timeout: 5))
+        XCTAssertEqual(mic.label, "Talk to agent")
+    }
+
     func testHistoryOpenAndContinueWithoutAutoplay() {
         let app = XCUIApplication(); app.launchArguments = ["-ui-testing-history"]; app.launch()
         app.tabBars.buttons["History"].tap()
@@ -72,7 +85,7 @@ final class VoxkinUITests: XCTestCase {
         let toggle = app.switches["Request access-management permission"]
         for _ in 0..<3 { if toggle.exists { break }; app.swipeUp() }
         XCTAssertTrue(toggle.waitForExistence(timeout:5)); XCTAssertFalse(toggle.isEnabled)
-        XCTAssertTrue(app.staticTexts["Disconnect to change this permission, then reconnect to request gateway approval."].exists)
+        XCTAssertTrue(app.staticTexts["Disconnect to change the permission request. This toggle does not install or enable the gateway plugin."].exists)
         app.buttons["Disconnect"].tap()
         XCTAssertTrue(toggle.isEnabled)
     }
@@ -138,7 +151,9 @@ final class VoxkinUITests: XCTestCase {
         let screenshot = XCTAttachment(screenshot:app.screenshot()); screenshot.name="Local voice settings"; screenshot.lifetime = .keepAlways; add(screenshot)
         app.buttons["voiceLanguage"].tap(); app.buttons["English"].tap()
         XCTAssertTrue(app.buttons["localVoice"].label.contains("Heart"))
-        XCTAssertTrue(app.buttons["Preview voice"].isEnabled)
+        let preview = app.buttons["Preview voice"]
+        for _ in 0..<4 { if preview.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(preview.waitForExistence(timeout: 5)); XCTAssertTrue(preview.isEnabled)
     }
     func testTalkTabsKeyboardSendAndPinnedStop() {
         let app = XCUIApplication(); app.launchArguments = ["-ui-testing"]; app.launch()

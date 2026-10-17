@@ -45,12 +45,12 @@ error, iOS version, selected language, and whether Notes/Preview work—no token
 ## Check the complete flow
 
 - Preview Heart and Dora separately to verify synthesis/playback.
-- In English, tap the main mic, speak, then tap again to finish and send.
+- In English, tap the main mic, wait for **Listening · speak now**, speak, then tap **Stop**. Review or edit the transcript and tap **Send**. Stopping does not send; clear the draft to discard it and re-record.
 - In Spanish, try “Hola, dime una frase sobre el bosque.” Check the transcribed words,
   Spanish reply, and Spanish voice. Confirm meaning as well as successful playback.
 - If finalization needs review, inspect/edit the draft and tap Send. The clear X
   appears only when there is text and lets you discard a mistaken draft.
-- Stop silences local audio; **Cancel request** separately asks the agent to stop.
+- **Stop audio** silences local playback; the X during ordinary recording discards the capture. **Cancel request** separately asks the agent to stop.
   Completed actions cannot be undone by either button.
 - Backgrounding/locking disconnects and clears the app conversation. Returning
   reconnects without replay. This does not erase gateway-side history.
@@ -62,7 +62,7 @@ the app restores normal auto-lock behavior; the side button still locks manually
 
 Hold the main microphone for about two-thirds of a second, then release. You can
 also tap **Hold the mic for conversation**. Start with an empty draft and a connected
-agent. Ordinary single-tap recording still works as before.
+agent. Ordinary phone recording uses an explicit record → stop/review → send flow; hands-free mode retains automatic pause-to-send.
 
 - Speak, then pause: roughly two seconds without new recognized words finishes
   transcription and sends the turn. This is a transcript-based pause detector, not

@@ -288,6 +288,8 @@ enum ReplyLength: String, CaseIterable, Identifiable {
     private let conversationPauseNanoseconds: UInt64
     private let conversationResumeNanoseconds: UInt64
     @Published var finishingSpeech = false
+    @Published private(set) var microphoneReady = false
+    private var sendAfterFinishing = false
     @Published var reply = ""
     @Published var sentText = ""
     @Published var turnStartedAt: Date?
@@ -804,7 +806,8 @@ enum ReplyLength: String, CaseIterable, Identifiable {
                 self.scheduleConversationPause(epoch: epoch)
             }, onEnd: { [weak self] message in
                 guard let self, self.gate.epoch == epoch else { return }
-                let shouldSend = (self.finishingSpeech || self.conversationMode) && message == nil
+                let shouldSend = (self.sendAfterFinishing || self.conversationMode) && message == nil
+                self.microphoneReady = false; self.sendAfterFinishing = false
                 self.conversationPauseTask?.cancel(); self.conversationPauseTask = nil
                 self.finishingSpeech = false
                 if let start = self.transcriptionStartedAt { self.transcriptionDuration = ProcessInfo.processInfo.systemUptime - start }
@@ -816,21 +819,30 @@ enum ReplyLength: String, CaseIterable, Identifiable {
                 else if self.conversationMode { self.stopConversationScheduling() }
             })
             guard gate.epoch == epoch, gate.state == .recording else { return }
+            microphoneReady = true
             prepareAcknowledgment()
-            feedback(.soft); status = conversationMode ? "Listening… Pause about 2 seconds to send. Stop ends conversation." : "Listening… Tap again to send."
+            feedback(.soft); status = conversationMode ? "Listening… Pause about 2 seconds to send. Stop ends conversation." : "Listening… Tap Stop to review your words."
         } catch { fail(error, epoch: epoch) }
     }
     func clearDraft() {
         guard activeRun == nil, !busy,
               gate.state == .recording || gate.state == .ready || gate.state == .interrupted else { return }
-        stopConversationScheduling(); capture.stop(); finishingSpeech = false
+        stopConversationScheduling(); capture.stop(); finishingSpeech = false; microphoneReady = false; sendAfterFinishing = false
         transcriptionStartedAt = nil; transcriptionDuration = nil
         gate.invalidate(connected ? .ready : .disconnected)
         draft = ""; status = "Draft cleared. Tap the mic or type to start again."
     }
-    func finishRecording() { stopConversationScheduling(); capture.stop(); gate.invalidate(.ready); status = "Review your draft before sending. Audio was not saved." }
+    func finishRecording() {
+        guard gate.state == .recording, microphoneReady, !finishingSpeech else { return }
+        stopConversationScheduling()
+        finishSpeech(send: false)
+    }
     func finishAndSend() {
+        finishSpeech(send: true)
+    }
+    private func finishSpeech(send: Bool) {
         guard gate.state == .recording, !finishingSpeech else { return }
+        sendAfterFinishing = send; microphoneReady = false
         conversationPauseTask?.cancel(); conversationPauseTask = nil
         transcriptionStartedAt = ProcessInfo.processInfo.systemUptime
         finishingSpeech = true; status = "Finishing your words…"
@@ -850,7 +862,7 @@ enum ReplyLength: String, CaseIterable, Identifiable {
         stopAcknowledgment(); progressSpeechTask?.cancel(); progressSpeechTask = nil; spokenDraft = ""; turnWasSpoken = false; lastRecognitionAt = nil
         if endConversation { stopConversationScheduling() }
         conversationPauseTask?.cancel(); conversationPauseTask = nil
-        previewing = false; finishingSpeech = false; transcriptionStartedAt = nil; transcriptionDuration = nil
+        previewing = false; finishingSpeech = false; microphoneReady = false; sendAfterFinishing = false; transcriptionStartedAt = nil; transcriptionDuration = nil
         speechPrefetch?.cancel(); speechPrefetch = nil
         let completion = playbackCompletion; playbackCompletion = nil
         completion?.resume(throwing: CancellationError())
