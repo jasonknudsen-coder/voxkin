@@ -58,11 +58,18 @@ class VoiceModel @JvmOverloads constructor(
     var level by mutableFloatStateOf(0f)
         private set
 
+    private val spokenDraft = SpokenDraft()
+    private var draftRevision = 0L
+    private var captureRevision = -1L
+    private var captureContext = ""
+    private var captureTrusted = false
     private var draftValue by mutableStateOf("")
     private var draftContext: String? = null
     var draft: String
         get() = draftValue
         set(value) {
+            spokenDraft.clear()
+            draftRevision++
             draftValue = value
             draftContext = if (value.isBlank()) null else conversationContext()
         }
@@ -143,6 +150,22 @@ class VoiceModel @JvmOverloads constructor(
     var languageStatus by
         mutableStateOf("Check that your selected on-device language model is installed.")
         private set
+
+    var conversationalFeedback by mutableStateOf(store.get("conversationalFeedback") != "false")
+        private set
+    var feedbackPlaying by mutableStateOf(false)
+        private set
+    private val feedback = TurnFeedback()
+    private var feedbackJob: Job? = null
+    private var feedbackTurn: FeedbackTurn? = null
+    private var feedbackAudio: FeedbackPlayback = FeedbackAudio(app, { feedbackPlaying = it }, { feedbackFocusLost() })
+    private data class FeedbackTurn(
+        val token: FeedbackToken, val run: String, var session: String, val generation: Int,
+        val transport: Transport, val source: String, val voice: String, val language: String,
+        val localAvailable: Boolean, val gatewayAvailable: Boolean,
+        val accepted: CompletableDeferred<Unit> = CompletableDeferred(),
+        val notice: CompletableDeferred<Unit> = CompletableDeferred(),
+    )
 
     private var speechGeneration = 0
     private var settleJob: Job? = null
@@ -273,6 +296,12 @@ class VoiceModel @JvmOverloads constructor(
         if (voices.none { it.id == value && it.language == language.substringBefore('-') }) return
         voice = value
         store.put("voice:${gateway.trim()}:$language", value)
+    }
+
+    fun chooseConversationalFeedback(value: Boolean) {
+        conversationalFeedback = value
+        store.put("conversationalFeedback", value.toString())
+        if (!value) stopFeedback()
     }
 
     fun chooseSpeechConsent(value: Boolean) {
@@ -905,6 +934,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     private fun clearProgress() {
+        stopFeedback()
         streamingText = ""
         progressNotices.clear()
         progressText = ""
@@ -945,7 +975,9 @@ class VoiceModel @JvmOverloads constructor(
         }
         val t = transport ?: return
         subscribeProgress()
-        val requestText = replyLength.requestText(text, language)
+        val spoken = spokenDraft.consume(draft, conversationContext())
+        val feedbackEligible = spoken && speechConsent && conversationalFeedback
+        val requestText = replyLength.requestText(text, language, feedbackEligible && !restricted && progressSubscriptionAvailable)
         stopAudio(endHandsFree = false)
         val current = generation
         val run = UUID.randomUUID().toString()
@@ -953,6 +985,7 @@ class VoiceModel @JvmOverloads constructor(
         timing = TurnTiming().sent(android.os.SystemClock.elapsedRealtime())
         speechProvider = ""
         clearProgress()
+        beginFeedback(run, t, feedbackEligible)
         busy = true
         resetMessagePage() // A new turn shifts offset-based history; refresh before loading older pages.
         status = "Waiting for reply…"
@@ -964,9 +997,13 @@ class VoiceModel @JvmOverloads constructor(
                     withTimeout(120000) {
                         if (restricted && sessionId.isEmpty()) {
                             val created = t.request("voxkin.history.create")
+                            currentCoroutineContext().ensureActive()
+                            if (current != generation || activeRun != run) return@withTimeout
                             sessionId =
                                 created.optJSONObject("conversation")?.getString("id")
                                     ?: created.getString("id")
+                            // Bind the newly created owned conversation, keeping Send-time voice settings.
+                            feedbackTurn?.takeIf { it.run == run && it.generation == current }?.session = session
                         }
                         rememberConversation()
                         val result =
@@ -980,6 +1017,9 @@ class VoiceModel @JvmOverloads constructor(
                                     "deliver" to false,
                                 ),
                             )
+                        feedbackTurn?.takeIf { it.run == run && feedbackValid(it) }?.let {
+                            if (feedback.accept(it.token, result.opt("runId") as? String)) it.accepted.complete(Unit)
+                        }
                         if (result.optString("runId", run) != run)
                             throw GatewayFailure("Gateway returned an unexpected request ID. Outcome unknown; nothing was replayed.")
                         while (current == generation && activeRun != null) delay(200)
@@ -1010,6 +1050,10 @@ class VoiceModel @JvmOverloads constructor(
         if (name == "session.message") {
             if (connected && !restricted && progressSubscriptionAvailable && progressNotices.accept(p, session, activeRun)) {
                 progressText = progressNotices.display("")
+                val text = p.optJSONObject("message")?.let { ProgressText.parse(it) }
+                feedbackTurn?.takeIf { feedbackValid(it) }?.let {
+                    if (text != null && feedback.offer(it.token, text)) it.notice.complete(Unit)
+                }
                 timing = timing.update(android.os.SystemClock.elapsedRealtime())
                 status = "Your agent is working…"
             }
@@ -1085,6 +1129,64 @@ class VoiceModel @JvmOverloads constructor(
             else "Stopped. Nothing was replayed."
         if (run != null && t != null)
             launchTask { t.request("chat.abort", obj("sessionKey" to session, "runId" to run)) }
+    }
+
+    private fun feedbackFocusLost() { stopAudio() }
+
+    private fun stopFeedback() {
+        feedback.invalidate()
+        feedbackTurn = null
+        feedbackJob?.cancel()
+        feedbackJob = null
+        feedbackAudio.stop()
+    }
+
+    private fun feedbackValid(turn: FeedbackTurn): Boolean = feedback.valid(turn.token) &&
+        feedbackTurn === turn && generation == turn.generation && transport === turn.transport &&
+        connected && activeRun == turn.run && session == turn.session && speechConsent &&
+        conversationalFeedback && !recording && !settling
+
+    private fun beginFeedback(run: String, t: Transport, eligible: Boolean) {
+        val token = feedback.begin(run, eligible)
+        if (!eligible) return
+        val selectedLanguage = language.substringBefore('-')
+        val turn = FeedbackTurn(token, run, session, generation, t, speechSource, voice, selectedLanguage,
+            localVoice && voices.any { it.id == voice && it.language == selectedLanguage },
+            !restricted && gatewaySpeechAvailable)
+        feedbackTurn = turn
+        feedbackJob = viewModelScope.launch {
+            try {
+                turn.accepted.await()
+                if (!feedbackValid(turn) || !feedback.claimReceipt(token)) return@launch
+                try { feedbackAudio.play(ReceiptTone.wav()) { feedbackValid(turn) } }
+                catch (_: Exception) { currentCoroutineContext().ensureActive() }
+                if (!feedbackValid(turn)) return@launch
+                feedback.receiptSettled(token)
+                turn.notice.await()
+                val notice = feedback.claimProgress(token) ?: return@launch
+                delay(800)
+                if (!feedbackValid(turn)) return@launch
+                val useLocal = turn.source == "local"
+                if (if (useLocal) !turn.localAvailable else !turn.gatewayAvailable) return@launch
+                val cleaned = SpeechText.prepare(notice)
+                if (cleaned.isBlank()) return@launch
+                val response = turn.transport.request(if (useLocal) "voxkin.speak" else "tts.speak",
+                    if (useLocal) obj("text" to cleaned, "voice" to turn.voice, "language" to turn.language)
+                    else obj("text" to cleaned))
+                currentCoroutineContext().ensureActive()
+                if (!feedbackValid(turn)) return@launch
+                if (useLocal) require(response.optString("provider") == "voxkin-local" &&
+                    response.optString("voice") == turn.voice && response.optString("language") == turn.language)
+                require(response.optString("provider").isNotBlank())
+                require(response.optString("mimeType") in listOf("audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/mp4", "audio/aac"))
+                val encoded = response.optString("audioBase64")
+                require(encoded.length <= 8_000_000)
+                val bytes = Base64.getDecoder().decode(encoded)
+                require(bytes.size in 1..6_000_000)
+                feedbackAudio.play(bytes) { feedbackValid(turn) }
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { /* Optional feedback never changes the main turn. */ }
+        }
     }
 
     private fun speak(text: String, answer: Boolean = true) {
@@ -1239,6 +1341,9 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun stopAudio(endHandsFree: Boolean = true) {
+        stopFeedback()
+        spokenDraft.clear()
+        captureTrusted = false
         if (endHandsFree) this.endHandsFree()
         audioGeneration++
         speaking = false
@@ -1372,6 +1477,14 @@ class VoiceModel @JvmOverloads constructor(
         }
     }
 
+    private fun prepareCaptureProvenance() {
+        val trustedBase = draft.isBlank() || spokenDraft.matches(draft, conversationContext())
+        stopAudio(endHandsFree = false)
+        captureContext = conversationContext()
+        captureRevision = draftRevision
+        captureTrusted = trustedBase
+    }
+
     fun startRecording() {
         if (!connected || busy || recording || settling) return
         val context = getApplication<Application>()
@@ -1381,7 +1494,7 @@ class VoiceModel @JvmOverloads constructor(
                 "On-device dictation is unavailable. Install your device speech model or type; cloud fallback is disabled."
             return
         }
-        stopAudio(endHandsFree = false)
+        prepareCaptureProvenance()
         speechGeneration++
         val current = speechGeneration
         partial = ""
@@ -1501,6 +1614,8 @@ class VoiceModel @JvmOverloads constructor(
 
     fun stopRecording(discard: Boolean = false) {
         if (discard) {
+            spokenDraft.clear()
+            captureTrusted = false
             handsFree.stop()
             speechGeneration++
             settleJob?.cancel()
@@ -1540,7 +1655,9 @@ class VoiceModel @JvmOverloads constructor(
         level = 0f
         partial = ""
         if (captured.isNotBlank()) {
+            val trusted = !text.isNullOrBlank() && captureTrusted && captureRevision == draftRevision && captureContext == conversationContext()
             draft = listOf(draft, captured).filter { it.isNotBlank() }.joinToString(" ")
+            if (trusted) spokenDraft.markFinal(draft, conversationContext())
             status = if (recovered)
                 "Final transcription unavailable. Recovered words may be incomplete — review or edit, then tap Send. Nothing was sent."
             else "Review or edit your words, then tap Send."

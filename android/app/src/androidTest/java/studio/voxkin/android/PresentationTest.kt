@@ -16,6 +16,19 @@ class PresentationTest {
 
     private fun model(): VoiceModel = ViewModelProvider(ui.activity)[VoiceModel::class.java].apply { syntheticHistory() }
 
+    @Test fun feedbackAndConsentControlsRemainAvailableDuringPendingAudio() {
+        ui.runOnIdle {
+            val m = model()
+            flag(m, "connected", true); flag(m, "busy", true)
+            flag(m, "feedbackPlaying", true); m.speechConsent = true
+            m.page = 2
+        }
+        ui.onNodeWithContentDescription("Allow gateway speech").performScrollTo().assertIsEnabled()
+        ui.onNodeWithContentDescription("Conversational feedback").performScrollTo().assertIsEnabled()
+        capture("conversational-feedback")
+        ui.onNodeWithText("Stop audio").performScrollTo().assertIsDisplayed().assertIsEnabled()
+    }
+
     @Test fun invitationQrProtectsWindowAndHidingClearsProtection() {
         ui.runOnIdle {
             val m = model()

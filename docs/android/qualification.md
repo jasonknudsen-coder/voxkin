@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.12 (14), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `3818ece5be292b3d1d286842d3ae898aaa5468e66d36069a9182faa44c1cd6f1`.
+- Version0.2.13 (15), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `1cedcd4af7428c533e782a0380133363d4d922e8688f9ba861036254c14457de`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -14,10 +14,10 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Automated evidence
 
-- **50/50 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
+- **55/55 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **75/75 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **88/88 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
@@ -326,3 +326,21 @@ subscription edge; fixed and regression-tested, with no remaining review blocker
 No live chat sends, history mutations or audio were used for qualification.
 Real commentary wire delivery and audio acceptance are not claimed by these fixtures.
 Receipt/spoken feedback and remaining presentation parity continue next.
+
+## Conversational feedback follow-up (0.2.13)
+
+55 JVM +88 Pixel tests passed (143 total): full87-test device run, plus the newly
+added pending-audio settings UI test. Final lint:0errors20warnings2hints. Optional
+spoken-turn feedback now has exact finalized draft provenance, exact acceptance
+ID, independent audio ownership, one bounded eligible public progress update,
+captured voice settings, and final/Stop/consent/lifecycle preemption.
+
+Twelve feedback device tests include real local tone playback and real receipt
+preemption followed by successful final audio/firstAudio/provider, alongside
+synthetic transport/lifecycle fault coverage. UI test and inspected screenshot
+verify feedback and consent controls remain enabled while busy; Stop is available.
+No live chat or synthesis requests were sent; generated test tones were used.
+Read-only review found stale focus callback/ownership, hands-free focus loss and
+partial-allocation cleanup edges; all corrected. Stale OS callbacks across every
+route are not stress-qualified. Real commentary/acoustic owner acceptance remains.
+Markdown display, haptics and pairing approval detail UI are next.

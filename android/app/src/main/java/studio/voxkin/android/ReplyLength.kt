@@ -9,9 +9,10 @@ enum class ReplyLength(val title: String, val detail: String, val guidance: Stri
     FULL("Full", "Normal-length answers, without a brevity preference.",
         "Use your normal response length; any earlier concise-reply preference is off.");
 
-    fun requestText(text: String, language: String): String {
+    fun requestText(text: String, language: String, progress: Boolean = false): String {
         if (text.trimStart().startsWith("/") || text.trimStart().startsWith("!")) return text
         val languageName = if (language.startsWith("es")) "Spanish" else "English"
-        return "[Voxkin reply preference for this turn only: $guidance Respond in $languageName unless the user explicitly requests another language. Speech will use the selected voice’s language.]\n\n$text"
+        val feedback = if (progress) " For quick questions, answer directly without acknowledgment or preamble. Only if work will take time, send at most one short natural contextual opening through the supported user-visible source-reply channel (under 180 characters), describing only work you are actually starting. Do not say Got it or narrate internal reasoning. Do not repeat that opening in the final answer. If clarification is needed, ask it directly as your answer rather than announcing that you will ask." else ""
+        return "[Voxkin reply preference for this turn only: $guidance Respond in $languageName unless the user explicitly requests another language. Speech will use the selected voice’s language.$feedback]\n\n$text"
     }
 }

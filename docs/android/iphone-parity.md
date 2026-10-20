@@ -72,8 +72,7 @@ Automatic stable owner titles and missing-preview enrichment are implemented (0.
 Owner archive filtering now explicitly excludes archived sessions, as on iOS.
 
 **Response experience:** chat delta/status streaming is implemented; persisted
-`session.message` commentary/interim updates and optional owner subscriptions are implemented (0.2.12). Still no
-receipt tone or spoken progress option. Response timing/provider diagnostics are implemented (0.2.10), excluding dictation-tail and receipt-cue timings.
+`session.message` commentary/interim updates and optional owner subscriptions are implemented (0.2.12). Optional spoken-turn receipt tone and one real progress update are implemented (0.2.13). Response timing/provider diagnostics are implemented (0.2.10), excluding dictation-tail and receipt-cue timings.
 Reply display is plain text, not formatted Markdown. Speech now applies inline Markdown and punctuation cleanup; the
 short-first-chunk and one-next-prefetch pipeline is now implemented. Android currently
 speaks bounded chunks for longer replies while iOS limits speech to4,000characters.
@@ -326,3 +325,23 @@ retain delta/final behavior. Failures retry only on later context changes or Sen
 Synthetic parser and Pixel lifecycle tests cover these contracts; real gateway
 commentary and acoustic acceptance remain separate. Receipt/spoken progress,
 Markdown display, haptics and pairing detail UI remain unfinished.
+
+## Conversational feedback follow-up (0.2.13)
+
+An enabled-by-default local preference adds a subtle 120ms accepted-request tone
+and at most one short spoken persisted-commentary update. Both require speech
+consent and an exact finalized, unedited dictated draft. Typed prefixes, recovered
+partials, edits (including edit→restore), and missing/mismatched acceptance IDs
+stay silent. Restricted turns get receipt/final only. Commands remain unwrapped.
+
+Feedback has independent job/player/file/focus ownership and never fills answer
+speech timings/provider or resumes the microphone. Final replies synchronously
+preempt feedback. Stop, background/disconnect, consent withdrawal, option-off and
+focus loss revoke the turn; focus loss also ends hands-free. Voice/language/source
+are captured at Send. One eligible notice waits for acceptance and receipt, then
+800ms before synthesis, with a12-second playback cap. Optional failures are silent.
+
+Pure state/tone tests and synthetic Pixel lifecycle tests cover ordering, captured
+settings and cancellation. Actual Pixel local-tone playback and receipt→final
+focus handoff also passed. This is not all-route/acoustic stress qualification;
+real long-running commentary and owner acceptance remain separate.

@@ -157,3 +157,14 @@ checks must be recorded before calling it qualified.
 
 See [iPhone presentation parity](iphone-parity.md) for the shared design and
 explicit remaining feature differences.
+
+
+## Conversational feedback
+
+Settings → Voice → **Conversational feedback** is enabled by default, but only
+works with speech consent and a finalized, unedited spoken draft. A subtle local
+tone confirms the exact request was accepted. For longer owner requests, the first
+eligible real public progress update may be spoken once; restricted connections
+use only the tone and final answer. Typed/edited drafts never trigger this feedback.
+The final answer interrupts feedback. You can turn feedback or speech consent off
+while waiting; re-enabling does not revive feedback for the current turn.

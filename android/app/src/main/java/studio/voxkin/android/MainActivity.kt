@@ -1192,13 +1192,20 @@ private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
                 Text("Allow gateway speech", Modifier.weight(1f), fontSize = 16.sp)
                 Switch(
                     checked = m.speechConsent,
+                    modifier = Modifier.semantics { contentDescription = "Allow gateway speech" },
                     onCheckedChange = { m.chooseSpeechConsent(it) },
-                    enabled = m.connected && idle,
+                    enabled = m.connected && (idle || m.speechConsent),
                 )
             }
             GroupText(
                 "Allows reply audio from your selected speech source on the gateway. Gateway default uses its configured voice and fallback providers; Local voices uses the gateway’s local voice catalog, not Android text-to-speech. Reply text may be sent to configured providers. Enable only if you accept this gateway’s policy."
             )
+            GroupDivider()
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Conversational feedback", Modifier.weight(1f), fontSize = 16.sp)
+                Switch(modifier = Modifier.semantics { contentDescription = "Conversational feedback" }, checked = m.conversationalFeedback, onCheckedChange = { m.chooseConversationalFeedback(it) })
+            }
+            GroupText("For spoken requests, play a subtle local sound after acceptance and one real spoken update for longer work. Requires speech consent. Restricted connections get the sound and final reply only.")
             GroupDivider()
             GroupPicker(
                 "Speech source",
@@ -1246,7 +1253,7 @@ private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
             ) {
                 m.previewVoice()
             }
-            if (m.speaking) {
+            if (m.speaking || m.feedbackPlaying) {
                 GroupDivider()
                 GroupAction("Stop audio", VoxkinSymbol.Stop) { m.stopAudio() }
             }
