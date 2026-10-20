@@ -26,6 +26,11 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class DeviceSmokeTest {
+    private fun testModel() = VoiceModel(ApplicationProvider.getApplicationContext<Application>(), automaticConnection = false).apply {
+        gateway = "wss://device-test-${UUID.randomUUID()}.example.com"
+        restricted = false
+    }
+
     private fun setPartial(model: VoiceModel, text: String) {
         @Suppress("UNCHECKED_CAST")
         val state = VoiceModel::class.java.getDeclaredField("partial" + "$" + "delegate")
@@ -44,8 +49,8 @@ class DeviceSmokeTest {
         val generation = VoiceModel::class.java.getDeclaredField("speechGeneration")
             .apply { isAccessible = true }
         instrumentation.runOnMainSync {
-            active = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
-            cancelled = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            active = testModel()
+            cancelled = testModel()
             setPartial(active, "Recovered after timeout.")
             setPartial(cancelled, "Must never return.")
             timeout.invoke(active, generation.getInt(active))
@@ -72,7 +77,7 @@ class DeviceSmokeTest {
     @Test
     fun failedRecognitionRetainsWordsForReviewWithoutSending() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            val model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            val model = testModel()
             val finish = VoiceModel::class.java.getDeclaredMethod(
                 "finishRecognition", Int::class.javaPrimitiveType, String::class.java
             ).apply { isAccessible = true }
@@ -97,7 +102,7 @@ class DeviceSmokeTest {
     @Test
     fun finalRecognitionWinsAndCancelNeverRecoversDiscardedWords() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            val model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            val model = testModel()
             val finish = VoiceModel::class.java.getDeclaredMethod(
                 "finishRecognition", Int::class.javaPrimitiveType, String::class.java
             ).apply { isAccessible = true }
@@ -123,7 +128,7 @@ class DeviceSmokeTest {
     @Test
     fun mismatchedRunIdStopsWithoutReplayingOrAdoptingRun() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            val model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            val model = testModel()
             @Suppress("UNCHECKED_CAST")
             val state = VoiceModel::class.java.getDeclaredField("connected" + "$" + "delegate")
                 .apply { isAccessible = true }.get(model) as MutableState<Boolean>
@@ -152,7 +157,7 @@ class DeviceSmokeTest {
         val gateway = "wss://source-${UUID.randomUUID()}.example.com"
         instrumentation.runOnMainSync {
             val app = ApplicationProvider.getApplicationContext<Application>()
-            val model = VoiceModel(app)
+            val model = testModel()
             model.gateway = gateway
             fun set(name: String, value: Any) {
                 @Suppress("UNCHECKED_CAST")
@@ -196,7 +201,7 @@ class DeviceSmokeTest {
     @Test
     fun clearDraftDiscardsPartialCaptureWithoutSending() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            val model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            val model = testModel()
             model.draft = "Synthetic draft"
             for (name in listOf("recording", "microphoneReady")) {
                 @Suppress("UNCHECKED_CAST")
@@ -217,7 +222,7 @@ class DeviceSmokeTest {
     @Test
     fun previewRequiresConnectionAndConsent() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            val model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            val model = testModel()
             model.previewVoice()
             assertFalse(model.speaking)
             @Suppress("UNCHECKED_CAST")
@@ -245,7 +250,7 @@ class DeviceSmokeTest {
                 val originalIdentity = store.identity(gateway).id
                 store.put(ownerKey, "synthetic-owner-grant")
                 store.put(guestKey, "synthetic-guest-grant")
-                val model = VoiceModel(app)
+                val model = testModel()
                 model.gateway = gateway
                 model.restricted = true
                 model.forget()
@@ -267,7 +272,7 @@ class DeviceSmokeTest {
     @Test
     fun restrictedHistoryListUsesPluginLimitTwenty() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            val model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            val model = testModel()
             @Suppress("UNCHECKED_CAST")
             val connected =
                 VoiceModel::class
@@ -313,7 +318,7 @@ class DeviceSmokeTest {
         lateinit var model: VoiceModel
         var sentSession = ""
         instrumentation.runOnMainSync {
-            model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            model = testModel()
             @Suppress("UNCHECKED_CAST")
             fun <T> flag(name: String, value: T) {
                 (VoiceModel::class
@@ -380,7 +385,7 @@ class DeviceSmokeTest {
         lateinit var model: VoiceModel
         var calls = 0
         instrumentation.runOnMainSync {
-            model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            model = testModel()
             @Suppress("UNCHECKED_CAST")
             val connected =
                 VoiceModel::class
@@ -435,7 +440,7 @@ class DeviceSmokeTest {
         val result = CompletableDeferred<JSONObject>()
         lateinit var model: VoiceModel
         instrumentation.runOnMainSync {
-            model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            model = testModel()
             val fake =
                 object : Transport {
                     override suspend fun request(method: String, params: JSONObject): JSONObject {
@@ -490,7 +495,7 @@ class DeviceSmokeTest {
     fun captureContextCannotBeChangedOrSentWhileRecordingOrSettling() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync {
-            val model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            val model = testModel()
             @Suppress("UNCHECKED_CAST")
             fun flag(name: String, value: Boolean) {
                 (VoiceModel::class

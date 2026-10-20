@@ -45,7 +45,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 class MainActivity : ComponentActivity() {
-    private val model: VoiceModel by viewModels()
+    companion object {
+        internal var modelFactory: androidx.lifecycle.ViewModelProvider.Factory? = null
+    }
+    private val model: VoiceModel by viewModels {
+        modelFactory ?: androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(application)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,6 +77,11 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         intent.dataString?.let { model.stage(it) }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        model.foreground()
     }
 
     override fun onStop() {
@@ -355,6 +365,7 @@ private fun TalkControls(
             m.recording -> "Stop recording and review"
             m.settling -> "Finishing transcription"
             !m.connected -> "Connect to gateway"
+            !m.conversationReady -> "Choose a conversation in History"
             hasDraft -> "Send draft to agent"
             else -> "Talk to agent"
         }
@@ -483,7 +494,7 @@ private fun TalkControls(
                                 keyboard?.hide()
                                 m.send()
                             },
-                            enabled = m.connected && !working && hasDraft,
+                            enabled = m.connected && m.conversationReady && !working && hasDraft,
                             modifier =
                                 Modifier.testTag("send").semantics {
                                     contentDescription = "Send message"
@@ -547,6 +558,7 @@ private fun TalkControls(
                                 !m.connected -> {
                                     if (m.gateway.isBlank()) m.page = 2 else m.connect()
                                 }
+                                !m.conversationReady -> { m.page = 1; m.listHistory() }
                                 hasDraft -> m.send()
                                 else -> permission.launch(Manifest.permission.RECORD_AUDIO)
                             }
@@ -927,7 +939,7 @@ private fun SettingsPage(m: VoiceModel) {
             }
         GroupSection(
             if (m.restricted) "Restricted gateway" else "Owner gateway",
-            "Tailscale must be connected separately. Microphone and messages always wait for you. Returning to the app requires an explicit connection; nothing is replayed.",
+            "Tailscale must be connected separately. Microphone and messages always wait for you. Returning reconnects your saved approved gateway and restores the conversation; nothing is sent, recorded, or replayed.",
         ) {
             Row(
                 Modifier.padding(horizontal = 16.dp, vertical = 4.dp),

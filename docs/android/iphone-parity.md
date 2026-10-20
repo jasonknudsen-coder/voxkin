@@ -31,8 +31,8 @@ Still outside this preview: hands-free conversation, owner invitation/approval
 management, camera QR scanner, automatic owner-conversation titles, history
 pagination, response timing panel, conversational receipt feedback and Android
 Auto. The iOS CarPlay integration does not automatically confer Android Auto
-support. Background return still requires explicit reconnect on Android and never
-replays speech or messages.
+support. Returning to the foreground reconnects previously approved saved access and
+restores the scoped conversation without replaying speech or messages.
 
 These differences should remain explicit in release notes. Do not render inert
 controls or advertise these capabilities until implemented and qualified.
@@ -67,8 +67,8 @@ This is a source audit plus bounded device tests, not a full parity declaration.
 
 ### Still different or missing (priority follow-up)
 
-**Conversation continuity:** reconnect currently starts a fresh conversation instead
-of restoring the last authorized endpoint/agent conversation. No automatic stable
+**Conversation continuity:** reconnect now restores the last authorized conversation
+per endpoint/access mode/agent. No automatic stable
 conversation naming, timestamps/previews/selected-row marker, pagination or older
 message loading. History capabilities are not yet independently gated per method.
 Owner archive filtering now explicitly excludes archived sessions, as on iOS.
@@ -81,7 +81,7 @@ speaks bounded chunks for longer replies while iOS limits speech to4,000characte
 
 **Capture/lifecycle:** no hands-free conversation or haptic cues. Android now retains the last nonempty
 partial hypothesis for review when final recognition fails or times out; Cancel
-still discards it. Returning requires explicit reconnect instead of iOS foreground reconnect.
+still discards it. Foreground reconnect and saved conversation restoration are now implemented.
 Android language is explicitly English/Spanish independent of speech source;
 iOS gateway-default dictation follows device locale. Android allows text-only
 Send without speech consent; iOS requires its speech-policy acceptance before Send.
@@ -116,3 +116,30 @@ and usability guarantees, not identical system implementation.
 These close specific audit gaps, not conversation restoration, streaming,
 hands-free, QR, administration, or full feature parity. Synthetic fault-path tests
 are not a claim of real microphone-failure or accessibility acceptance.
+
+## Conversation continuity follow-up (0.2.3, 2026-10-20)
+
+- Persist the selected conversation and agent in encrypted storage, separated by
+  normalized endpoint and owner/restricted access. Restricted restoration reads
+  the existing server-owned conversation instead of creating a new one each time.
+- Read history only after authenticated connection. Failed, malformed or denied
+  restoration blocks Send and points to History/New conversation. No silent fallback
+  from a failed saved history read to another conversation.
+- Foreground/cold launch reconnect requires a prior successful connection marker,
+  saved credentials, and no staged credential. Fresh setup and enrollment remain
+  explicit. One attempt per foreground entry; no background reconnect loop.
+- Explicit Disconnect suppresses foreground reconnect for the current app process.
+  A fresh process can reconnect saved approved access. Forget removes the reconnect
+  marker and all per-agent continuity for the selected endpoint/access mode.
+- Backgrounding discards active capture/audio/request tracking. Returning can read
+  a completed response from history but never resends the turn, restarts capture,
+  adopts its old run, or plays restored speech.
+- Unsent drafts survive same-conversation backgrounding in memory only; they are
+  cleared on explicit disconnect or context change. They are not persisted to disk.
+- Independent read-only review found draft/context crossover; scope binding fixed
+  it and the follow-up review found no remaining blockers. One reviewer, all edits
+  and device operations owned by the lead. Cockpit remains unavailable because the
+  project is not allowlisted; no control-plane configuration was changed.
+
+Remaining work still includes streaming, faster speech startup/prefetch, richer
+history/pagination, hands-free, QR setup, and owner phone administration.

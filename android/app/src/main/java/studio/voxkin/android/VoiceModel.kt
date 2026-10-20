@@ -30,7 +30,9 @@ data class GatewayVoice(val id: String, val name: String, val language: String)
 
 data class ChatLine(val role: String, val text: String)
 
-class VoiceModel(app: Application) : AndroidViewModel(app) {
+class VoiceModel @JvmOverloads constructor(
+    app: Application, private val automaticConnection: Boolean = true
+) : AndroidViewModel(app) {
     private val store = SecureStore(app)
     var gateway by mutableStateOf(store.get("lastGateway") ?: "")
     var token by mutableStateOf("")
@@ -56,7 +58,14 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
     var level by mutableFloatStateOf(0f)
         private set
 
-    var draft by mutableStateOf("")
+    private var draftValue by mutableStateOf("")
+    private var draftContext: String? = null
+    var draft: String
+        get() = draftValue
+        set(value) {
+            draftValue = value
+            draftContext = if (value.isBlank()) null else conversationContext()
+        }
     var partial by mutableStateOf("")
         private set
 
@@ -87,6 +96,9 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
 
     var page by mutableIntStateOf(0)
     private var transport: Transport? = null
+    private var automaticConnectionSuppressed = false
+    var conversationReady by mutableStateOf(true)
+        private set
     private var generation = 0
     private var scopeJob: Job? = null
     private val operations = mutableSetOf<Job>()
@@ -115,6 +127,8 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
     private var localVoice = false
     private val session
         get() = "agent:$agent:voxkin:$sessionId"
+
+    private fun conversationContext() = "${credentialKey()}|$agent|$sessionId"
 
     private fun credentialKey() = "${if(restricted)"guest" else "owner"}:${gateway.trim()}"
 
@@ -145,6 +159,8 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
         if (value != gateway) {
             token = ""
             invitation = ""
+            draft = ""
+            automaticConnectionSuppressed = true
         }
         gateway = value
     }
@@ -223,7 +239,8 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun connect() {
-        disconnect()
+        disconnect(allowResume = true)
+        automaticConnectionSuppressed = false
         val current = generation
         busy = true
         status = "Connecting…"
@@ -248,9 +265,9 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                             OwnerTransport(events) {
                                 viewModelScope.launch {
                                     if (generation == current && connected) {
-                                        disconnect()
+                                        disconnect(allowResume = true)
                                         status =
-                                            "Disconnected. Reconnect manually; nothing was replayed."
+                                            "Connection lost. Return to the app or tap Connect to retry; nothing was replayed."
                                     }
                                 }
                             }
@@ -271,20 +288,17 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                         transport!!.request("agents.list").rows("agents").map {
                             it.getString("id") to it.optString("name", it.getString("id"))
                         }
-                    if (!restricted) agent = agents.firstOrNull()?.first ?: error("No agents")
+                    if (!restricted) agent = store.get("agent:${credentialKey()}")
+                        ?.takeIf { saved -> agents.any { it.first == saved } }
+                        ?: agents.firstOrNull()?.first ?: error("No agents")
                     speechSource = if (restricted) "local" else
                         store.get("speech-source:${credentialKey()}")
                             ?: if (localVoice) "local" else "gateway"
                     connected = true
                     speechConsent = store.get("speech-consent:${gateway.trim()}") == "true"
                     status = "Connected. Tap Record or type a message."
-                    sessionId =
-                        if (restricted) {
-                            val created = transport!!.request("voxkin.history.create")
-                            created.optJSONObject("conversation")?.getString("id")
-                                ?: created.getString("id")
-                        } else UUID.randomUUID().toString()
-                    messages = emptyList()
+                    restoreConversation()
+                    store.put("resume:${credentialKey()}", "true")
                     if (localVoice)
                         runCatching { transport!!.request("voxkin.catalog") }
                             .onSuccess { c ->
@@ -334,6 +348,9 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                     val r = t.call(obj("op" to "redeem", "secret" to invitation))
                     val d = r.optJSONObject("device") ?: r
                     val secret = d.getString("deviceSecret")
+                    store.remove("history:guest:${gateway.trim()}")
+                    store.remove("agent:guest:${gateway.trim()}")
+                    store.remove("resume:guest:${gateway.trim()}")
                     store.put("guest:${gateway.trim()}", secret)
                     store.put("lastGateway", gateway.trim())
                     store.put("lastMode", "restricted")
@@ -350,7 +367,11 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun disconnect() {
+    fun disconnect(allowResume: Boolean = false) {
+        if (!allowResume) {
+            automaticConnectionSuppressed = true
+            draft = ""
+        }
         generation++
         operations.toList().forEach { it.cancel() }
         operations.clear()
@@ -375,11 +396,85 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun background() {
-        disconnect()
+        disconnect(allowResume = true)
+    }
+
+    fun foreground() {
+        if (canReconnect()) connect()
+    }
+
+    internal fun canReconnect(): Boolean {
+        if (!automaticConnection || automaticConnectionSuppressed || connected || busy ||
+            token.isNotBlank() || invitation.isNotBlank()) return false
+        val endpoint = runCatching { Protocol.endpoint(gateway, restricted).toString() }.getOrNull() ?: return false
+        return endpoint == gateway && store.get("resume:${credentialKey()}") == "true" &&
+            !store.get(credentialKey()).isNullOrBlank()
+    }
+
+    private fun rememberConversation() {
+        val key = "history:${credentialKey()}"
+        val saved = runCatching { JSONObject(store.get(key) ?: "{}") }.getOrDefault(JSONObject())
+        saved.put(agent, sessionId)
+        store.put(key, saved.toString())
+        store.put("agent:${credentialKey()}", agent)
+    }
+
+    private suspend fun readConversation(id: String): List<ChatLine> {
+        require(if (restricted) runCatching { UUID.fromString(id) }.isSuccess else Protocol.owns(id, agent))
+        val result = transport!!.request(
+            if (restricted) "voxkin.history.messages" else "chat.history",
+            if (restricted) obj("conversationId" to id, "limit" to 50)
+            else obj("sessionKey" to id, "agentId" to agent, "limit" to 50, "offset" to 0, "maxBytes" to 128000),
+        )
+        require(result.optJSONArray("messages") != null) { "Missing history messages" }
+        return result.rows("messages").mapNotNull {
+            val text = Protocol.text(it)
+            if (text.isBlank()) null else ChatLine(it.optString("role"), text)
+        }
+    }
+
+    internal suspend fun restoreConversation() {
+        val current = generation
+        val selectedAgent = agent
+        conversationReady = false
+        messages = emptyList()
+        try {
+            val saved = JSONObject(store.get("history:${credentialKey()}") ?: "{}").optString(agent)
+            if (saved.isNotEmpty()) {
+                require(runCatching { UUID.fromString(saved) }.isSuccess)
+                val loaded = readConversation(if (restricted) saved else "agent:$agent:voxkin:$saved")
+                currentCoroutineContext().ensureActive()
+                if (generation != current || agent != selectedAgent) return
+                sessionId = saved
+                messages = loaded
+                status = "Conversation restored. Nothing was sent or played."
+            } else {
+                val created = if (restricted) {
+                    val r = transport!!.request("voxkin.history.create")
+                    r.optJSONObject("conversation")?.getString("id") ?: r.getString("id")
+                } else UUID.randomUUID().toString()
+                require(runCatching { UUID.fromString(created) }.isSuccess)
+                currentCoroutineContext().ensureActive()
+                if (generation != current || agent != selectedAgent) return
+                sessionId = created
+                status = "Connected. New conversation ready."
+            }
+            if (draft.isNotBlank() && draftContext != conversationContext()) draft = ""
+            conversationReady = true
+            rememberConversation()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            if (generation == current && agent == selectedAgent)
+                status = "Could not restore the conversation. Open History or choose New conversation before sending. Nothing was replayed."
+        }
     }
 
     fun forget() {
         disconnect()
+        store.remove("history:${credentialKey()}")
+        store.remove("agent:${credentialKey()}")
+        store.remove("resume:${credentialKey()}")
         store.remove("speech-source:${credentialKey()}")
         store.remove(credentialKey())
         store.remove("speech-consent:${gateway.trim()}")
@@ -400,15 +495,20 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
         )
             return
         stopAudio()
-        agent = id
-        sessionId = UUID.randomUUID().toString()
-        messages = emptyList()
-        conversations = emptyList()
-        draft = ""
+        launchHistory {
+            agent = id
+            conversations = emptyList()
+            draft = ""
+            restoreConversation()
+        }
     }
 
     fun send() {
         if (!connected || busy || recording || settling || draft.isBlank()) return
+        if (!conversationReady) {
+            status = "Open History or choose New conversation before sending."
+            return
+        }
         val text = draft.trim()
         if (text.length > 4000) {
             status = "Keep messages under 4,000 characters."
@@ -434,6 +534,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                                 created.optJSONObject("conversation")?.getString("id")
                                     ?: created.getString("id")
                         }
+                        rememberConversation()
                         val result =
                             t.request(
                                 "chat.send",
@@ -986,6 +1087,8 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                     val r = transport!!.request("voxkin.history.create")
                     r.optJSONObject("conversation")?.getString("id") ?: r.getString("id")
                 } else UUID.randomUUID().toString()
+            conversationReady = true
+            rememberConversation()
             messages = emptyList()
             draft = ""
             page = 0
@@ -997,25 +1100,15 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
         if (busy || recording || settling) return
         launchHistory {
             stopAudio()
-            val r =
-                transport!!.request(
-                    if (restricted) "voxkin.history.messages" else "chat.history",
-                    if (restricted) obj("conversationId" to c.id, "limit" to 50)
-                    else
-                        obj(
-                            "sessionKey" to c.id,
-                            "agentId" to agent,
-                            "limit" to 50,
-                            "offset" to 0,
-                            "maxBytes" to 128000,
-                        ),
-                )
+            val current = generation
+            val selectedAgent = agent
+            val loaded = readConversation(c.id)
+            currentCoroutineContext().ensureActive()
+            if (current != generation || agent != selectedAgent) return@launchHistory
             sessionId = c.id.substringAfterLast(':')
-            messages =
-                r.rows("messages").mapNotNull {
-                    val text = Protocol.text(it)
-                    if (text.isBlank()) null else ChatLine(it.optString("role"), text)
-                }
+            messages = loaded
+            conversationReady = true
+            rememberConversation()
             draft = ""
             page = 1
             status = "Conversation loaded (latest page)."
@@ -1073,6 +1166,11 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                 messages = emptyList()
                 draft = ""
                 sessionId = if (restricted) "" else UUID.randomUUID().toString()
+                val key = "history:${credentialKey()}"
+                val saved = runCatching { JSONObject(store.get(key) ?: "{}") }.getOrDefault(JSONObject())
+                saved.remove(agent)
+                store.put(key, saved.toString())
+                conversationReady = true
             }
             conversations = conversations.filter { it.id != c.id }
         }

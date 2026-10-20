@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.2 (4), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `4873992c7d11327359075541bcdc054112c5b9843d4cf56a0fc76d9eec5e6675`.
+- Version0.2.3 (5), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `248b528344742b09d21afbe0d9f32a0d9a442a3be9b4b6fc2a2e35c30a8d493a`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -17,10 +17,10 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 - **16/16 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **21/21 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **28/28 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
-  background/foreground no automatic connection or recording; language support probe;
+  fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
   clear-capture cancellation; preview consent; recording hides Send; explicit reviewed-draft
   send state and keyboard editing; over-limit draft preservation.
 - Android lint: **0 errors,19 warnings** (dependency currency, style/manifest and
@@ -113,3 +113,26 @@ See [parity scope](iphone-parity.md) for features still outside this preview.
 - Saved owner pairing reconnected successfully after the upgrade; returned to Talk.
 - Recovery fault paths are synthetic on-device tests, not a real microphone-error
   acceptance test. Human audio quality/route acceptance remains outstanding.
+
+## Conversation continuity follow-up (0.2.3)
+
+- 16 JVM +28 physical Pixel instrumentation tests pass (44 total); lint0errors,
+  19warnings. The UI test runner explicitly disables automatic connection so tests
+  never reconnect the phone owner's real gateway or overwrite live history.
+- New regressions cover owner/restricted/endpoint/agent isolation, successful
+  history-only restoration, denied/malformed history, explicit New recovery,
+  restricted restoration without extra create, reconnect eligibility, staged setup,
+  explicit Disconnect, draft-scope clearing, and background during a pending turn
+  with a late final event. Restored replies do not synthesize audio.
+- Independent reviewer identified draft/context crossover; fixed with bound draft
+  context and verified by follow-up review. One finding, one accepted fix.
+- Restricted reconnect is covered with synthetic on-device transports; not a new
+  live restricted enrollment/approval acceptance claim.
+
+- Live owner Pixel check: selected an existing conversation from History, verified
+  its visible conversation text was unchanged after Home/foreground and after a
+  force-stop/cold launch; both displayed the restored-conversation status with no
+  manual Connect. No new chat message was sent for this check.
+- Explicit Disconnect followed by Home/foreground remained disconnected. The final
+  installed app retains the existing saved pairing. Raw UI receipts remain local
+  and are not included in source or shared screenshots.

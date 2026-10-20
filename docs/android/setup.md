@@ -62,8 +62,14 @@ speech provider and fallback. Consent and voice selection are remembered for tha
 gateway after authentication. Preview voice uses the same consent and Stop audio
 controls as replies. Brief / Balanced / Full applies only to new messages from
 this phone; slash and bang commands are sent unchanged. Android does not replace the gateway's privacy
-policy. Leaving the application stops capture/playback and disconnects; reconnect
-explicitly when returning. No pending message is automatically replayed.
+policy. Leaving the application stops capture/playback and disconnects. Returning
+reconnects saved, previously approved access and restores the selected conversation.
+No pending message, microphone capture, or speech is automatically replayed. Drafts
+survive same-conversation backgrounding only in memory, not process termination.
+Explicit Disconnect suppresses this reconnect for the current app process; a fresh
+launch may reconnect saved access. Forget removes the saved reconnect permission.
+If restoration fails, choose a conversation in History or explicitly start New;
+sending remains blocked until a conversation is ready.
 
 History belongs to the gateway, not a vendor-hosted conversation service. Delete
 requires confirmation and affects the selected gateway conversation. Forgetting
