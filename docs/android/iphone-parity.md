@@ -27,8 +27,7 @@ This is **core phone presentation parity**, not a claim that every iOS feature
 has shipped on Android. Android uses its own keyboard, permission dialogs,
 accessibility services and on-device recognition implementation.
 
-Still outside this preview: owner invitation/approval
-management, automatic owner-conversation titles,
+Still outside this preview: automatic owner-conversation titles,
 response timing panel, conversational receipt feedback and Android
 Auto. The iOS CarPlay integration does not automatically confer Android Auto
 support. Returning to the foreground reconnects previously approved saved access and
@@ -89,8 +88,8 @@ iOS gateway-default dictation follows device locale. Android allows text-only
 Send without speech consent; iOS requires its speech-policy acceptance before Send.
 These differences must not be hidden behind identical-looking controls.
 
-**Setup/management:** camera QR setup is implemented (0.2.7); owner invite/approve/revoke UI remains missing.
-Pairing-request guidance and persistent restricted-phone ID need iPhone alignment.
+**Setup/management:** camera QR setup is implemented (0.2.7); owner invite/approve/revoke/cancel UI and persistent restricted-phone ID are implemented (0.2.8).
+Pairing-request detail UI still needs iPhone alignment.
 Forget removes credentials but currently retains address/voice preferences, unlike
 iOS; do not describe it as erasing every setting. Android Auto remains separate.
 
@@ -244,3 +243,29 @@ management and the other explicit platform/experience differences above.
 - Real optical scanning of a displayed/printed invitation still needs owner acceptance;
   generated-image decoder tests and a camera permission/cancel check are distinct evidence.
   No real enrollment, device approval or gateway configuration change is part of this batch.
+
+
+## Owner phone access (0.2.8, 2026-10-20)
+
+- Owner-only explicit admin request, off on fresh app process. Signed handshake
+  scopes add operator.admin only on opt-in; missing optional admin still permits
+  an approved read/write connection. Controls require opt-in, granted admin scope,
+  and all five advertised access methods. Restricted phones cannot use the controls.
+- Refresh lists gateway-controlled allowed agents, phone labels/status/ID suffixes
+  and outstanding invitations. Create/approve/revoke/cancel each has a target-naming
+  confirmation; consuming it once prevents duplicate taps from replaying mutations.
+- Connection generation, list revision, expiry/status checks and operation locking
+  reject stale confirmation/response state. Unknown outcomes require a fresh list
+  before another mutation; never automatically retry a security-affecting request.
+- Invitation QR/private sharesheet uses only the validated returned secret and
+  original gateway. No automatic send/clipboard. Secret stays in memory and clears
+  on expiry/background/disconnect; QR window is protected against screen capture.
+- Restricted phone ID persists encrypted by endpoint after enrollment, or from a
+  valid authenticated hello ID for existing phones. Last eight characters match
+  owner display; Forget removes only the selected endpoint's local ID.
+- Read-only review: first prior lane could not restart due service authorization;
+  one fresh reviewer completed successfully with no blockers. Parent owns all edits
+  and device operations. No live invitations/approvals/revocations were performed.
+  Cockpit remains not allowlisted; no control-plane changes.
+- Real admin grant acquisition and owner/guest access lifecycle acceptance remain
+  separate from synthetic protocol/model/UI coverage. Full iPhone parity unfinished.

@@ -42,7 +42,7 @@ class OwnerTransport(
     private val pending = ConcurrentHashMap<String, CompletableDeferred<JSONObject>>()
     private var active = true
 
-    suspend fun connect(url: String, identity: Identity, token: String): JSONObject {
+    suspend fun connect(url: String, identity: Identity, token: String, requestAdmin: Boolean = false): JSONObject {
         Protocol.endpoint(url)
         socket =
             client.newWebSocket(
@@ -68,7 +68,7 @@ class OwnerTransport(
         val c = withTimeout(15000) { challenge.await() }
         val ts = c.opt("ts")
         require(ts is Number && ts.toDouble() >= 0 && ts.toDouble() % 1.0 == 0.0)
-        val scopes = listOf("operator.read", "operator.write")
+        val scopes = AccessPolicy.scopes(requestAdmin)
         val h =
             request(
                 "connect",
@@ -93,7 +93,7 @@ class OwnerTransport(
             )
         require(h.optString("type") == "hello-ok" && h.optInt("protocol") == 4)
         val a = h.optJSONObject("auth") ?: error("Missing grant")
-        require(a.optString("role") == "operator" && a.strings("scopes").containsAll(scopes))
+        require(a.optString("role") == "operator" && a.strings("scopes").containsAll(AccessPolicy.scopes(false)))
         return h
     }
 

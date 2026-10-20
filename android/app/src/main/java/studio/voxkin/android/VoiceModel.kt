@@ -217,6 +217,7 @@ class VoiceModel @JvmOverloads constructor(
     fun updateGateway(value: String) {
         if (connected || busy) return
         if (value != gateway) {
+            requestAdmin = false
             token = ""
             invitation = ""
             draft = ""
@@ -285,6 +286,157 @@ class VoiceModel @JvmOverloads constructor(
         }
     }
 
+    var requestAdmin by mutableStateOf(false)
+        private set
+    var adminPermissionGranted by mutableStateOf(false)
+        private set
+    var supportsAccessManagement by mutableStateOf(false)
+        private set
+    val canManageAccess: Boolean get() = connected && !restricted && requestAdmin && adminPermissionGranted && supportsAccessManagement
+    var accessLoaded by mutableStateOf(false)
+        private set
+    var accessDevices by mutableStateOf<List<AccessRow>>(emptyList())
+        private set
+    var accessInvites by mutableStateOf<List<AccessRow>>(emptyList())
+        private set
+    var accessAgents by mutableStateOf<List<String>>(emptyList())
+        private set
+    var inviteAgent by mutableStateOf("")
+    var inviteLabel by mutableStateOf("")
+    var accessConfirmation by mutableStateOf<AccessConfirmation?>(null)
+        private set
+    var shareInvitation by mutableStateOf("")
+        private set
+    var invitationExpiresAt by mutableStateOf(0L)
+        private set
+    private var sharedInviteId = ""
+    private var inviteExpiryJob: Job? = null
+    private var accessRevision = 0
+
+    fun chooseRequestAdmin(value: Boolean) {
+        if (connected || busy || restricted) return
+        requestAdmin = value
+    }
+
+    fun hideInvitation() {
+        shareInvitation = ""
+        sharedInviteId = ""
+        invitationExpiresAt = 0
+        inviteExpiryJob?.cancel()
+        inviteExpiryJob = null
+    }
+
+    private fun clearAccess() {
+        adminPermissionGranted = false
+        supportsAccessManagement = false
+        accessLoaded = false
+        accessDevices = emptyList(); accessInvites = emptyList(); accessAgents = emptyList()
+        accessConfirmation = null
+        inviteAgent = ""; inviteLabel = ""
+        accessRevision++
+        hideInvitation()
+    }
+
+    private suspend fun readAccess(t: Transport, current: Int) {
+        val result = t.request("voxkin.access.list")
+        currentCoroutineContext().ensureActive()
+        if (generation != current || !canManageAccess) return
+        val agents = result.strings("agents")
+        require(agents.size <= 500 && agents.all { AccessPolicy.agent(it) })
+        val devices = result.rows("devices"); val invites = result.rows("invites")
+        require(devices.size <= 500 && invites.size <= 500)
+        val parsedDevices = devices.map { AccessRow.parse(it, true) }
+        val parsedInvites = invites.map { AccessRow.parse(it, false) }
+        require(parsedDevices.map { it.id }.distinct().size == parsedDevices.size && parsedInvites.map { it.id }.distinct().size == parsedInvites.size)
+        accessDevices = parsedDevices; accessInvites = parsedInvites; accessAgents = agents.distinct()
+        if (inviteAgent !in accessAgents) inviteAgent = accessAgents.firstOrNull().orEmpty()
+        if (sharedInviteId.isNotEmpty() && accessInvites.none { it.id == sharedInviteId }) hideInvitation()
+        accessRevision++
+        accessConfirmation = null
+        accessLoaded = true
+    }
+
+    fun refreshAccess() {
+        if (!canManageAccess || busy || recording || settling || speaking) return
+        val t = transport ?: return
+        val current = generation
+        accessLoaded = false
+        accessConfirmation = null
+        busy = true
+        launchTask {
+            try {
+                readAccess(t, current)
+                if (current == generation) status = "Phone access refreshed."
+            } finally { if (current == generation) busy = false }
+        }
+    }
+
+    fun prepareAccessAction(action: String, id: String = "") {
+        if (!canManageAccess || !accessLoaded || busy || recording || settling || speaking) return
+        val row = when (action) {
+            "invite" -> {
+                if (inviteAgent !in accessAgents || !AccessPolicy.label(inviteLabel.trim())) return
+                AccessRow("", inviteLabel.trim(), inviteAgent, "", 0)
+            }
+            "approve" -> accessDevices.firstOrNull { it.id == id && it.status == "pending" && it.agent in accessAgents && it.expiresAt > System.currentTimeMillis() }
+            "revoke" -> accessDevices.firstOrNull { it.id == id && it.status in listOf("pending", "active") }
+            "cancel" -> accessInvites.firstOrNull { it.id == id && it.expiresAt > System.currentTimeMillis() }
+            else -> null
+        } ?: return
+        accessConfirmation = AccessConfirmation(action, row.id, row.label, row.agent, generation, accessRevision)
+    }
+
+    fun dismissAccessAction() { accessConfirmation = null }
+
+    fun confirmAccessAction() {
+        val pending = accessConfirmation ?: return
+        accessConfirmation = null
+        if (!canManageAccess || !accessLoaded || busy || generation != pending.generation || accessRevision != pending.revision) return
+        // Recheck row state/expiry immediately before sending a confirmed mutation.
+        if (pending.action == "approve" && accessDevices.none { it.id == pending.id && it.status == "pending" && it.agent in accessAgents && it.expiresAt > System.currentTimeMillis() }) return
+        if (pending.action == "cancel" && accessInvites.none { it.id == pending.id && it.expiresAt > System.currentTimeMillis() }) return
+        val t = transport ?: return
+        val current = generation
+        val origin = gateway
+        val params = when (pending.action) {
+            "invite" -> obj("agentId" to pending.agent, "label" to pending.label)
+            "approve", "revoke" -> obj("deviceId" to pending.id)
+            "cancel" -> obj("inviteId" to pending.id)
+            else -> return
+        }
+        busy = true
+        accessLoaded = false
+        hideInvitation()
+        launchTask {
+            try {
+                val result = t.request("voxkin.access.${pending.action}", params)
+                currentCoroutineContext().ensureActive()
+                if (current != generation || !canManageAccess) return@launchTask
+                if (pending.action == "invite") {
+                    val row = AccessRow.parse(result, false)
+                    require(row.agent == pending.agent && row.label == pending.label)
+                    val remaining = row.expiresAt - System.currentTimeMillis()
+                    require(remaining in 1..3_600_000)
+                    val link = AccessPolicy.invitation(origin, result.getString("inviteSecret"))
+                    shareInvitation = link; sharedInviteId = row.id; invitationExpiresAt = row.expiresAt
+                    inviteExpiryJob = viewModelScope.launch {
+                        delay(remaining)
+                        if (current == generation && sharedInviteId == row.id) hideInvitation()
+                    }
+                }
+                status = "Access action completed. Refreshing…"
+                readAccess(t, current)
+                if (current == generation) status = "Phone access updated."
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) {
+                if (current == generation) {
+                    hideInvitation()
+                    status = "Access action could not be verified; outcome may be unknown. Refresh before retrying. Nothing was replayed."
+                }
+            } finally { if (current == generation) busy = false }
+        }
+    }
+
     var scannedSetup by mutableStateOf<Protocol.Setup?>(null)
         private set
 
@@ -341,6 +493,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     private fun applySetup(setup: Protocol.Setup) {
+        requestAdmin = false
         restoreSetupFlow()
         disconnect()
         gateway = Protocol.endpoint(setup.gateway, setup.restricted).toString()
@@ -378,7 +531,10 @@ class VoiceModel @JvmOverloads constructor(
                     if (restricted) {
                         val t = RestrictedTransport(gateway, secret, viewModelScope, events)
                         transport = t
-                        t.connect()
+                        val hello = t.connect()
+                        if (current != generation) return@launch
+                        val phoneId = hello.optString("deviceId")
+                        if (AccessPolicy.id(phoneId)) store.put("phone-id:$key", phoneId)
                         agent = t.agent
                         localVoice = true
                     } else {
@@ -393,10 +549,12 @@ class VoiceModel @JvmOverloads constructor(
                                 }
                             }
                         transport = t
-                        val h = t.connect(gateway, store.identity(gateway), secret)
+                        val h = t.connect(gateway, store.identity(gateway), secret, requestAdmin)
+                        adminPermissionGranted = h.optJSONObject("auth")?.strings("scopes")?.contains("operator.admin") == true
                         val grant = h.optJSONObject("auth")?.optString("deviceToken").orEmpty()
                         store.put(key, grant.ifBlank { secret })
                         val methods = h.optJSONObject("features")?.strings("methods").orEmpty()
+                        supportsAccessManagement = methods.containsAll(AccessPolicy.methods)
                         localVoice = methods.contains("voxkin.speak")
                         gatewaySpeechAvailable = methods.contains("tts.speak")
                     }
@@ -456,6 +614,8 @@ class VoiceModel @JvmOverloads constructor(
             }
     }
 
+    val enrolledPhoneId: String get() = if (restricted) store.get("phone-id:${credentialKey()}").orEmpty() else ""
+
     fun enroll() {
         if (busy) return
         val current = generation
@@ -468,7 +628,12 @@ class VoiceModel @JvmOverloads constructor(
                 try {
                     val r = t.call(obj("op" to "redeem", "secret" to invitation))
                     val d = r.optJSONObject("device") ?: r
+                    currentCoroutineContext().ensureActive()
+                    if (current != generation) return@launchTask
                     val secret = d.getString("deviceSecret")
+                    val phoneId = d.getString("id")
+                    require(AccessPolicy.id(phoneId) && secret.matches(Regex("[A-Za-z0-9_-]{43}")))
+                    store.put("phone-id:guest:${gateway.trim()}", phoneId)
                     store.remove("history:guest:${gateway.trim()}")
                     store.remove("agent:guest:${gateway.trim()}")
                     store.remove("resume:guest:${gateway.trim()}")
@@ -478,7 +643,7 @@ class VoiceModel @JvmOverloads constructor(
                     token = ""
                     invitation = ""
                     status =
-                        "Enrollment sent. Phone ID ${d.optString("id").take(8)}. Ask the owner to approve, then Connect."
+                        "Enrollment sent. Phone ID ${phoneId.takeLast(8)}. Ask the owner to approve, then Connect."
                 } finally {
                     t.close()
                 }
@@ -489,6 +654,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun disconnect(allowResume: Boolean = false) {
+        clearAccess()
         scannedSetup = null
         endHandsFree()
         if (!allowResume) {
@@ -644,6 +810,7 @@ class VoiceModel @JvmOverloads constructor(
 
     fun forget() {
         disconnect()
+        store.remove("phone-id:${credentialKey()}")
         store.remove("history:${credentialKey()}")
         store.remove("agent:${credentialKey()}")
         store.remove("resume:${credentialKey()}")

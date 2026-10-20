@@ -86,6 +86,27 @@ requires confirmation and affects the selected gateway conversation. Forgetting
 local access is not server-side revocation; revoke a device at the gateway when
 needed.
 
+## Owner phone management
+
+While disconnected in owner mode, enable **Request access-management permission**
+and reconnect. The gateway must approve operator.admin for this phone and advertise
+all five Voxkin access-management methods. The toggle is off on a fresh app process;
+ordinary connections remain read/write only. A shared token or the toggle alone does
+not grant admin access or install the gateway plugin.
+
+Once permitted, use **Refresh phones and invitations**, select an allowed dedicated
+agent and phone label, then **Add phone**. Review and confirm to create an invitation.
+The QR and Share action are temporary, expire at the gateway-provided time, and clear
+on background/disconnect. The displayed QR blocks screen capture; use the deliberate
+Share action privately. No invite is copied to the clipboard or sent automatically.
+
+After enrollment, compare the phone's last eight ID characters with the owner list,
+then confirm **Approve phone**. **Revoke phone** and **Cancel invitation** also require
+confirmation naming their target. Failed/uncertain mutations require Refresh before
+trying again; there is no automatic replay. Existing restricted phones can recover
+their ID from the authenticated gateway hello when supported; new enrollments save it
+encrypted alongside endpoint-scoped access. Forget removes that local ID, not server access.
+
 ## QR setup
 
 In Settings, disconnect first if already connected, then choose **Scan setup QR**.
@@ -126,7 +147,7 @@ Hands-free real EN/ES conversational and Bluetooth/headset acceptance is pending
 ## Preview gaps
 
 Camera QR scanning and paste/deep-link setup are supported. Android Auto is not implemented. The Android preview is not yet a claim of full
-iOS feature parity (including owner invitation-management UI). Physical microphone/language, routing, lifecycle and live gateway
+iOS feature parity; several response/history experience features still differ. Physical microphone/language, routing, lifecycle and live gateway
 checks must be recorded before calling it qualified.
 
 See [iPhone presentation parity](iphone-parity.md) for the shared design and

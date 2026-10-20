@@ -16,6 +16,54 @@ class PresentationTest {
 
     private fun model(): VoiceModel = ViewModelProvider(ui.activity)[VoiceModel::class.java]
 
+    @Test fun invitationQrProtectsWindowAndHidingClearsProtection() {
+        ui.runOnIdle {
+            val m = model()
+            m.restricted = false; m.chooseRequestAdmin(true)
+            flag(m, "connected", true); flag(m, "adminPermissionGranted", true)
+            flag(m, "supportsAccessManagement", true); flag(m, "accessLoaded", true)
+            @Suppress("UNCHECKED_CAST")
+            fun set(name: String, value: Any) {
+                (VoiceModel::class.java.getDeclaredField(name + "$" + "delegate").apply { isAccessible = true }.get(m) as MutableState<Any>).value = value
+            }
+            m.page = 2
+            set("shareInvitation", AccessPolicy.invitation("wss://qr.example.com", "s".repeat(43)))
+            set("invitationExpiresAt", System.currentTimeMillis() + 600000)
+        }
+        ui.onNodeWithContentDescription("Single-use phone invitation QR").performScrollTo().assertIsDisplayed()
+        ui.runOnIdle { assertTrue(ui.activity.window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE != 0) }
+        ui.onNodeWithText("Hide invitation QR").performScrollTo().performClick()
+        ui.runOnIdle {
+            assertEquals("", model().shareInvitation)
+            assertEquals(0, ui.activity.window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
+
+    @Test fun accessApprovalDialogNamesPhoneAndCancelDoesNotGrantAccess() {
+        ui.runOnIdle {
+            val m = model()
+            m.restricted = false
+            m.chooseRequestAdmin(true)
+            flag(m, "connected", true); flag(m, "adminPermissionGranted", true)
+            flag(m, "supportsAccessManagement", true); flag(m, "accessLoaded", true)
+            @Suppress("UNCHECKED_CAST")
+            fun set(name: String, value: Any) {
+                (VoiceModel::class.java.getDeclaredField(name + "$" + "delegate").apply { isAccessible = true }.get(m) as MutableState<Any>).value = value
+            }
+            set("accessAgents", listOf("guest"))
+            set("accessDevices", listOf(AccessRow("a".repeat(32), "Family phone", "guest", "pending", System.currentTimeMillis() + 600000)))
+            m.page = 2
+            m.prepareAccessAction("approve", "a".repeat(32))
+        }
+        ui.onNodeWithText("Approve phone?").assertIsDisplayed()
+        ui.onNodeWithText("Family phone · guest", substring = true).assertIsDisplayed()
+        ui.onNodeWithText("ID: aaaaaaaa", substring = true).assertIsDisplayed()
+        capture("access-approval", dialog = true)
+        ui.onNodeWithText("Cancel").performClick()
+        ui.runOnIdle { assertNull(model().accessConfirmation); assertFalse(model().busy) }
+        ui.onNodeWithText("Refresh phones and invitations").performScrollTo().assertIsDisplayed()
+    }
+
     @Test fun scannedSetupReviewHidesCredentialAndRequiresSeparateUse() {
         ui.runOnIdle {
             model().reviewSetupScan("voxkin://setup#gateway=wss%3A%2F%2Fqr.example.com&token=synthetic-hidden-credential")

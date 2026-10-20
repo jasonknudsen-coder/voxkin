@@ -127,8 +127,9 @@ class TransportTest {
         }
     }
 
-    @Test
-    fun ownerHandshakeUsesAndroidIdentityAndHasNoReplay() = fixture { server, client, url ->
+    @Test fun ownerHandshakeUsesAndroidIdentityAndHasNoReplay() = ownerHandshake(false)
+    @Test fun adminScopeIsRequestedOnlyWhenExplicitAndReadWriteFallbackStillConnects() = ownerHandshake(true)
+    private fun ownerHandshake(admin: Boolean) = fixture { server, client, url ->
         runBlocking {
             val received = CompletableDeferred<JSONObject>()
             server.enqueue(
@@ -179,12 +180,12 @@ class TransportTest {
             )
             val t = OwnerTransport({ _, _ -> }, {})
             t.client = client
-            t.connect(url, Identity(ByteArray(32) { it.toByte() }), "synthetic")
+            t.connect(url, Identity(ByteArray(32) { it.toByte() }), "synthetic", requestAdmin = admin)
             val p = withTimeout(3000) { received.await() }.getJSONObject("params")
             assertEquals("openclaw-android", p.getJSONObject("client").getString("id"))
             assertEquals("android", p.getJSONObject("client").getString("platform"))
             assertEquals(4, p.getInt("maxProtocol"))
-            assertFalse(p.getJSONArray("scopes").toString().contains("operator.admin"))
+            assertEquals(admin, p.getJSONArray("scopes").toString().contains("operator.admin"))
             t.close()
             assertTrue(runCatching { t.request("chat.send") }.isFailure)
             assertEquals(1, server.requestCount)

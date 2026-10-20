@@ -7,9 +7,11 @@ import com.journeyapps.barcodescanner.ScanContract
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.compose.LocalActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,6 +33,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -121,6 +125,14 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun Voxkin(m: VoiceModel, onScanSetup: () -> Unit) {
+    val activity = LocalActivity.current
+    val invitationVisible = m.shareInvitation.isNotEmpty()
+    DisposableEffect(activity, invitationVisible) {
+        val window = activity?.window
+        val wasSecure = window != null && window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE != 0
+        if (invitationVisible) window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose { if (invitationVisible && !wasSecure) window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) }
+    }
     val focus = LocalFocusManager.current
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     Scaffold(
@@ -974,6 +986,65 @@ private fun HistoryPage(m: VoiceModel) {
 }
 
 @Composable
+private fun AccessPanel(m: VoiceModel) {
+    val context = LocalContext.current
+    val idle = !m.busy && !m.recording && !m.settling && !m.speaking
+    val pending = m.accessConfirmation
+    if (pending != null) AlertDialog(
+        onDismissRequest = { m.dismissAccessAction() },
+        title = { Text(when (pending.action) { "invite" -> "Create phone invitation?"; "approve" -> "Approve phone?"; "revoke" -> "Revoke phone access?"; else -> "Cancel invitation?" }) },
+        text = { Text(buildString {
+            append("${pending.label} · ${pending.agent}")
+            if (pending.id.isNotEmpty()) append("\nID: ${pending.id.takeLast(8)}")
+            append(when (pending.action) {
+                "invite" -> "\nA single-use invitation will be created on this gateway. Share it privately; enrollment still needs owner approval."
+                "approve" -> "\nCompare this ID with the enrolled phone. Approval grants access to the displayed agent."
+                "revoke" -> "\nThis removes the phone's gateway access. Its owner will need a new invitation to join again."
+                else -> "\nThe invitation will no longer work for enrollment."
+            })
+        }) },
+        confirmButton = { TextButton(onClick = { m.confirmAccessAction() }, enabled = idle) { Text("Confirm") } },
+        dismissButton = { TextButton(onClick = { m.dismissAccessAction() }) { Text("Cancel") } },
+    )
+    GroupSection("Manage phone access", "Compare phone IDs before approving. Access changes are made on the connected gateway.") {
+        GroupAction("Refresh phones and invitations", enabled = idle) { m.refreshAccess() }
+        if (!m.accessLoaded) GroupText("Refresh to load current access before making changes.")
+        GroupPicker("Allowed agent", m.inviteAgent, m.accessAgents.map { it to it }, enabled = idle && m.accessLoaded) { m.inviteAgent = it }
+        SetupField(m.inviteLabel, { m.inviteLabel = it.take(80) }, "Phone label", enabled = idle && m.accessLoaded)
+        GroupAction("Add phone", enabled = idle && m.accessLoaded && m.inviteAgent in m.accessAgents && AccessPolicy.label(m.inviteLabel.trim())) { m.prepareAccessAction("invite") }
+        if (m.shareInvitation.isNotEmpty()) {
+            val link = m.shareInvitation
+            val bitmap = remember(link) { runCatching {
+                com.journeyapps.barcodescanner.BarcodeEncoder().encodeBitmap(link, com.google.zxing.BarcodeFormat.QR_CODE, 640, 640)
+            }.getOrNull() }
+            if (bitmap != null) Image(bitmap.asImageBitmap(), "Single-use phone invitation QR", Modifier.fillMaxWidth().height(240.dp).padding(16.dp))
+            GroupText("Single-use invitation. Expires ${java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(m.invitationExpiresAt))}. Share privately; approve the matching phone after enrollment.")
+            GroupAction("Share invitation", enabled = idle) {
+                if (m.shareInvitation == link && System.currentTimeMillis() < m.invitationExpiresAt) {
+                    val send = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, link) }
+                    runCatching { context.startActivity(Intent.createChooser(send, "Share phone invitation privately")) }
+                        .onFailure { m.status = "No sharing app available. Use the invitation QR instead." }
+                } else m.hideInvitation()
+            }
+            GroupAction("Hide invitation QR") { m.hideInvitation() }
+        }
+        if (m.accessLoaded && m.accessDevices.isEmpty()) GroupText("No enrolled phones.")
+        m.accessDevices.forEach { phone ->
+            GroupDivider()
+            GroupText("${phone.label} · ${phone.status}\n${phone.id.takeLast(8)} · ${phone.agent}")
+            if (phone.status == "pending") GroupAction("Approve phone", enabled = idle && m.accessLoaded && phone.agent in m.accessAgents) { m.prepareAccessAction("approve", phone.id) }
+            if (phone.status != "revoked") GroupAction("Revoke phone", enabled = idle && m.accessLoaded, destructive = true) { m.prepareAccessAction("revoke", phone.id) }
+        }
+        if (m.accessLoaded && m.accessInvites.isEmpty()) GroupText("No pending invitations.")
+        m.accessInvites.forEach { invite ->
+            GroupDivider()
+            GroupText("${invite.label} · ${invite.agent}\nInvitation ${invite.id.takeLast(8)}")
+            GroupAction("Cancel invitation", enabled = idle && m.accessLoaded, destructive = true) { m.prepareAccessAction("cancel", invite.id) }
+        }
+    }
+}
+
+@Composable
 private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
     val scanned = m.scannedSetup
     if (scanned != null) AlertDialog(
@@ -1040,6 +1111,7 @@ private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
                 Switch(
                     checked = m.restricted,
                     onCheckedChange = {
+                        m.chooseRequestAdmin(false)
                         m.restricted = it
                         m.token = ""
                         m.invitation = ""
@@ -1081,6 +1153,20 @@ private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
                     "Enrollment sends this invitation to the displayed gateway. Owner approval is required before access activates."
                 )
             }
+            if (!m.restricted) {
+                GroupDivider()
+                Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Request access-management permission", Modifier.weight(1f), fontSize = 15.sp)
+                    Switch(checked = m.requestAdmin, onCheckedChange = { m.chooseRequestAdmin(it) }, enabled = !m.connected && !m.busy)
+                }
+                GroupText("Requires gateway approval for operator.admin. A shared token alone does not grant access. Disconnect before changing this request.")
+                if (m.connected) {
+                    GroupText(if (m.adminPermissionGranted) "Admin permission: granted for this connection." else "Admin permission: not granted.")
+                    GroupText(if (m.supportsAccessManagement) "Phone-management API: available." else "Phone-management API: unavailable. Enable a compatible Voxkin access plugin on the gateway, then reconnect.")
+                }
+            } else if (m.enrolledPhoneId.isNotEmpty()) {
+                GroupText("Phone ID: ${m.enrolledPhoneId.takeLast(8)}. Compare this with the owner before approval.")
+            }
             GroupDivider()
             GroupAction(
                 if (m.connected) "Disconnect" else if (m.busy) "Cancel connection" else "Connect"
@@ -1089,6 +1175,7 @@ private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
             }
             GroupText(m.status)
         }
+        if (m.canManageAccess) AccessPanel(m)
         if (m.connected && m.agents.isNotEmpty())
             GroupSection("Agent") {
                 GroupPicker("Talk to", m.agent, m.agents, enabled = idle && !m.restricted) {

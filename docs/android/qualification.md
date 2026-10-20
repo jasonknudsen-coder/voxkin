@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.7 (9), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `04ea22826a9b9654b4fd16fc62642451f190eed46a281c4037252481ef59549f`.
+- Version0.2.8 (10), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `a4c4090ac9b41d0270ce567007bf7053b232c4ad9e7513a4a1d5fd40e8df9b5b`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -14,16 +14,16 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Automated evidence
 
-- **27/27 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
+- **30/30 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **53/53 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **63/63 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
   clear-capture cancellation; preview consent; recording hides Send; explicit reviewed-draft
   send state and keyboard editing; over-limit draft preservation.
-- Android lint: **0 errors,20 warnings** (dependency currency, style/manifest and
+- Android lint: **0 errors,20 warnings,1 hint** (dependency currency, style/manifest and
   launcher-icon shape). No clean-lint claim.
 - Independent read-only review and follow-up confirmed fixes for the identified
   protocol, cancellation and context-switching bugs in earlier batches. The0.2.6
@@ -231,3 +231,30 @@ See [parity scope](iphone-parity.md) for features still outside this preview.
   replaying speech or sending. No iOS/gateway or production/store change.
 - Physical optical QR decoding of a displayed/printed invitation remains owner
   acceptance. Generated-image decode and camera-opening tests do not claim that.
+
+
+## Owner phone-management follow-up (0.2.8)
+
+- 30 JVM +63 physical Pixel tests passed (93 total), lint0errors/20warnings/1hint.
+  Optional admin handshake is exercised against a real TLS mock WebSocket: default
+  asks only read/write; explicit opt-in adds admin; an approved read/write fallback
+  still connects without enabling management. Dedicated-agent/label and invitation
+  URL policy checks are covered with synthetic material.
+- Model tests verify all permission gates, read-only refresh, confirmation before
+  each mutation, no duplicate confirmation replay, exact target IDs, dismissal,
+  failed-outcome refresh requirement, background/disconnect clearing, stale list
+  rejection, share-secret expiry and endpoint-scoped enrolled-phone-ID Forget.
+- Pixel UI tests inspect a synthetic named phone approval dialog and cancel it,
+  render a synthetic invitation QR, verify FLAG_SECURE while shown, and remove
+  that protection after Hide. Approval screenshot contains synthetic data only.
+- Independent read-only access reviewer found no blockers. Prior reviewer restart
+  failed service authorization, so one fresh reviewer was used; no false pass from
+  the failed lane. Parent reviewed the final authenticated-hello phone-ID recovery.
+- All management tests use synthetic transport data. No real invitation created,
+  approval granted, device revoked or invite cancelled; no admin permission enabled
+  on the live gateway. Real owner-admin acquisition and enrolled guest lifecycle
+  still need acceptance. Existing read/write owner connection remains the handoff.
+- Initial lint flagged casting LocalContext to Activity; fixed using LocalActivity,
+  reran build/lint. Final APK includes the authenticated-hello ID recovery and the
+  complete device suite was repeated after that change. Test package removed; saved
+  owner conversation restored on Talk without Send/audio. No iOS/gateway/store change.
