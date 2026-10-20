@@ -125,10 +125,11 @@ These are follow-up work, not additional App Review blockers.
   October15. Ubuntu full gateway/phone evidence is distinct from Debian component
   qualification. See [Linux qualification](linux-qualification.md).
 
-## Android roadmap — October 15, 2026
+## Android roadmap — updated October 20, 2026
 
-Future work after the iOS launch stabilizes; not a current support claim or a
-commitment to a release date. Maintainer requested recording this direction.
+Native Pixel-first implementation is now in local qualification. See the
+[Android setup guide](android/setup.md) and [qualification evidence](android/qualification.md).
+This is not a Google Play release or a universal Android support claim.
 
 - [ ] Native Android phone client, preferably Kotlin + Jetpack Compose, reusing
   the gateway/plugin protocols rather than adding a vendor conversation backend.
