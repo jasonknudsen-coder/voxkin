@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.13 (15), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `1cedcd4af7428c533e782a0380133363d4d922e8688f9ba861036254c14457de`.
+- Version0.2.14 (16), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `0143763a73a1ad091dca12bc8c0f24b618d6c7039b37043fbb008f63c5223db2`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -14,10 +14,10 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Automated evidence
 
-- **55/55 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
+- **59/59 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **88/88 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **90/90 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
@@ -344,3 +344,17 @@ Read-only review found stale focus callback/ownership, hands-free focus loss and
 partial-allocation cleanup edges; all corrected. Stale OS callbacks across every
 route are not stress-qualified. Real commentary/acoustic owner acceptance remains.
 Markdown display, haptics and pairing approval detail UI are next.
+
+## Inline display follow-up (0.2.14)
+
+59 JVM +90 Pixel tests passed (149 total), lint0errors20warnings2hints. Inline
+Markdown preserves Swift-probed whitespace, emoji ranges, reference literals,
+strikethrough and inline-code behavior. Talk assistant finals and both History
+roles format; Talk user/progress stays literal. Stored text stays unchanged.
+Safe HTTP(S) links require taps; image alt/HTML never fetch resources. Image alt
+subtrees flatten all descendant annotations. Read-only review caught that edge.
+
+Pixel Talk screenshot visually inspected: bold, italic, strike and code are visible,
+with user/progress delimiters preserved. History fixture initially lacked connected
+state; corrected the fixture and reran the full90-test suite successfully. Pairing
+approval details and haptics continue next; full parity/human acceptance not claimed.

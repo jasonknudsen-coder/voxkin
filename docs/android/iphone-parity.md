@@ -73,7 +73,7 @@ Owner archive filtering now explicitly excludes archived sessions, as on iOS.
 
 **Response experience:** chat delta/status streaming is implemented; persisted
 `session.message` commentary/interim updates and optional owner subscriptions are implemented (0.2.12). Optional spoken-turn receipt tone and one real progress update are implemented (0.2.13). Response timing/provider diagnostics are implemented (0.2.10), excluding dictation-tail and receipt-cue timings.
-Reply display is plain text, not formatted Markdown. Speech now applies inline Markdown and punctuation cleanup; the
+Reply display now supports iPhone-style inline Markdown (0.2.14), preserving whitespace; Talk user/progress cards remain plain and History formats both roles. Speech now applies inline Markdown and punctuation cleanup; the
 short-first-chunk and one-next-prefetch pipeline is now implemented. Android currently
 speaks bounded chunks for longer replies while iOS limits speech to4,000characters.
 
@@ -345,3 +345,22 @@ Pure state/tone tests and synthetic Pixel lifecycle tests cover ordering, captur
 settings and cancellation. Actual Pixel local-tone playback and receipt→final
 focus handoff also passed. This is not all-route/acoustic stress qualification;
 real long-running commentary and owner acceptance remain separate.
+
+## Inline Markdown follow-up (0.2.14)
+
+Talk final assistant replies and both roles in History now use selectable inline
+formatting: emphasis/strong, code, single/double-tilde strikethrough and explicit
+HTTP(S) links. Talk user/progress text remains plain. Stored text is never rewritten.
+Image alt text is flattened without descendant annotations or image fetching;
+HTML remains literal. Unsafe links remain readable, without actions.
+
+The isolated CommonMark0.30.1 inline adapter preserves tabs/spaces, blank lines,
+trailing newlines, literal reference definitions and cross-blank-line emphasis.
+It normalizes CRLF to LF. Triple-backtick sequences follow inline-code semantics,
+not fenced-block layout, matching Swift Foundation probes. Source/output offsets
+are UTF-16, including emoji. This deliberately uses a pinned internal parser API;
+keep the Swift-derived whitespace/annotation fixtures on dependency upgrades.
+
+Read-only review caught nested image-alt links/styles; fixed with regression
+coverage. This closes inline display, not full Markdown block/table rendering.
+Pairing approval details, haptics and real human acceptance remain separate work.

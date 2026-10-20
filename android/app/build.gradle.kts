@@ -2,7 +2,7 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
  namespace = "studio.voxkin.android"
  compileSdk = 36
- defaultConfig { applicationId = "studio.voxkin.android"; minSdk = 31; targetSdk = 36; versionCode = 15; versionName = "0.2.13"; testInstrumentationRunner = "studio.voxkin.android.IsolatedTestRunner" }
+ defaultConfig { applicationId = "studio.voxkin.android"; minSdk = 31; targetSdk = 36; versionCode = 16; versionName = "0.2.14"; testInstrumentationRunner = "studio.voxkin.android.IsolatedTestRunner" }
  buildFeatures { compose = true }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  kotlinOptions { jvmTarget = "17" }
@@ -18,6 +18,7 @@ dependencies {
  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
  implementation("com.squareup.okhttp3:okhttp:4.12.0")
  implementation("org.commonmark:commonmark:0.30.1")
+ implementation("org.commonmark:commonmark-ext-gfm-strikethrough:0.30.1")
  implementation("com.journeyapps:zxing-android-embedded:4.3.0")
  implementation("org.bouncycastle:bcprov-jdk18on:1.82")
  androidTestImplementation(platform("androidx.compose:compose-bom:2025.10.00"))

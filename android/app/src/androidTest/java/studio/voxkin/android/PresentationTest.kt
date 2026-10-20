@@ -29,6 +29,40 @@ class PresentationTest {
         ui.onNodeWithText("Stop audio").performScrollTo().assertIsDisplayed().assertIsEnabled()
     }
 
+    @Test fun talkFormatsOnlyFinalAssistantAndKeepsDraftAndProgressLiteral() {
+        ui.runOnIdle {
+            val m = model()
+            @Suppress("UNCHECKED_CAST")
+            fun set(name: String, value: Any) {
+                (VoiceModel::class.java.getDeclaredField(name + "$" + "delegate").apply { isAccessible = true }.get(m) as MutableState<Any>).value = value
+            }
+            set("messages", listOf(ChatLine("user", "**Typed stays literal**"),
+                ChatLine("assistant", "A **bold** fact.\n\nAnother *thought*. ~Gone~ and `code`.")))
+            set("activeRun", "synthetic")
+            set("progressText", "**Progress stays literal**")
+            m.page = 0
+        }
+        ui.onNodeWithText("**Typed stays literal**").performScrollTo().assertIsDisplayed()
+        ui.onNodeWithText("A bold fact.\n\nAnother thought. Gone and code.").performScrollTo().assertIsDisplayed()
+        capture("inline-markdown")
+        ui.onNodeWithText("**Progress stays literal**").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun historyFormatsBothRolesWithoutChangingStoredText() {
+        val rows = listOf(ChatLine("user", "**Earlier question**"), ChatLine("assistant", "*Earlier answer*"))
+        ui.runOnIdle {
+            val m = model()
+            flag(m, "connected", true)
+            @Suppress("UNCHECKED_CAST")
+            val state = VoiceModel::class.java.getDeclaredField("messages" + "$" + "delegate").apply { isAccessible = true }.get(m) as MutableState<List<ChatLine>>
+            state.value = rows
+            m.page = 1
+        }
+        ui.onNodeWithText("Earlier question").performScrollTo().assertIsDisplayed()
+        ui.onNodeWithText("Earlier answer").performScrollTo().assertIsDisplayed()
+        ui.runOnIdle { assertEquals(rows, model().messages) }
+    }
+
     @Test fun invitationQrProtectsWindowAndHidingClearsProtection() {
         ui.runOnIdle {
             val m = model()

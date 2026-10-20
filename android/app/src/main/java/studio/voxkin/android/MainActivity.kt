@@ -321,11 +321,11 @@ private fun TalkPage(m: VoiceModel) {
                     }
                 }
             }
-            latestUser?.let { MessageCard(it, false) }
-            latestAgent?.let { MessageCard(it, true) }
+            latestUser?.let { MessageCard(it, false, formatted = false) }
+            latestAgent?.let { MessageCard(it, true, formatted = true) }
             if (m.requestPending && m.pendingText.isNotBlank()) {
                 Text("Reply in progress", color = VoxkinBrand.secondary, fontSize = 12.sp)
-                MessageCard(ChatLine("assistant", m.pendingText), true)
+                MessageCard(ChatLine("assistant", m.pendingText), true, formatted = false)
             }
         }
         TalkControls(
@@ -347,7 +347,7 @@ private fun TalkPage(m: VoiceModel) {
 }
 
 @Composable
-private fun MessageCard(line: ChatLine, agent: Boolean) {
+private fun MessageCard(line: ChatLine, agent: Boolean, formatted: Boolean) {
     Column(
         Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(if (agent) 24.dp else 22.dp))
@@ -379,7 +379,10 @@ private fun MessageCard(line: ChatLine, agent: Boolean) {
                 color = if (agent) VoxkinBrand.magenta else VoxkinBrand.cyan,
             )
         }
-        SelectionContainer { Text(line.text, fontSize = 16.sp, lineHeight = 24.sp) }
+        val display = remember(line.text, formatted) {
+            if (formatted) InlineMarkdown.render(line.text).annotated() else androidx.compose.ui.text.AnnotatedString(line.text)
+        }
+        SelectionContainer { Text(display, fontSize = 16.sp, lineHeight = 24.sp) }
     }
 }
 
@@ -925,7 +928,7 @@ private fun HistoryPage(m: VoiceModel) {
             }
             m.messages
                 .filter { it.role == "user" || it.role == "assistant" }
-                .forEach { line -> MessageCard(line, agent = line.role == "assistant") }
+                .forEach { line -> MessageCard(line, agent = line.role == "assistant", formatted = true) }
         }
         Text(
             m.status,
