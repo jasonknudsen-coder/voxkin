@@ -73,10 +73,11 @@ conversation naming, timestamps/previews/selected-row marker, pagination or olde
 message loading. History capabilities are not yet independently gated per method.
 Owner archive filtering now explicitly excludes archived sessions, as on iOS.
 
-**Response experience:** final-only replies, no streaming/interim agent updates,
+**Response experience:** chat delta/status streaming is implemented; persisted
+`session.message` commentary/interim updates remain missing. Still no
 no receipt tone or spoken progress option, no response timing/provider panel.
 Reply display is plain text, not formatted Markdown. Speech now applies inline Markdown and punctuation cleanup; the
-short-first-chunk/prefetch pipeline remains missing. Android currently
+short-first-chunk and one-next-prefetch pipeline is now implemented. Android currently
 speaks bounded chunks for longer replies while iOS limits speech to4,000characters.
 
 **Capture/lifecycle:** no hands-free conversation or haptic cues. Android now retains the last nonempty
@@ -141,5 +142,29 @@ are not a claim of real microphone-failure or accessibility acceptance.
   and device operations owned by the lead. Cockpit remains unavailable because the
   project is not allowlisted; no control-plane configuration was changed.
 
-Remaining work still includes streaming, faster speech startup/prefetch, richer
+Remaining work includes persisted commentary/progress feedback, richer
 history/pagination, hands-free, QR setup, and owner phone administration.
+
+## Streaming and speech pipeline (0.2.4, 2026-10-20)
+
+- Matching active-run/session chat deltas appear under Reply in progress. Snapshot,
+  append and replace forms are supported; text is bounded to16,000UTF-16 units.
+  Final replaces this transient view and is added to history once. Error, cancel,
+  timeout and disconnect clear it; stale/cross-context events are ignored.
+- Assistant text snapshots reject tool/thinking content and explicit non-visible
+  channel/phase values. Raw deltaText is treated as the gateway's display-text
+  contract, with the same context and channel/phase checks. No partial speech.
+- Gateway status phases become waiting/thinking/getting-ready labels. Restricted
+  transports remain final-only where their polling protocol does not provide deltas.
+- Speech starts with a sentence-sized clip (~180 code points, hard280), then larger
+  clips (~600, hard700). UTF-16 surrogate pairs are preserved. No measured latency
+  improvement is claimed; actual provider latency/network/audio routing still vary.
+- At most one next clip is synthesized while the current clip plays. Stop,
+  background, context change and failure cancel outstanding prefetch; clips remain
+  ordered. Existing provider/voice/language/MIME/size checks apply to each clip.
+- Parent source review and automated/device checks completed. Independent reviewer
+  could not run (tool authorization failure, including one retry); this batch has
+  no independent-review pass. Cockpit remains unavailable/not allowlisted.
+- This is not persisted commentary streaming, spoken progress feedback, Markdown
+  display rendering, or full iPhone parity. Android's longer-reply speech policy
+  still differs from the iPhone4,000-character cap.

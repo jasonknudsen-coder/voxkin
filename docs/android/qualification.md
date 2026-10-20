@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.3 (5), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `248b528344742b09d21afbe0d9f32a0d9a442a3be9b4b6fc2a2e35c30a8d493a`.
+- Version0.2.4 (6), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `3f6f7f785bb1456da4ad9ed3ca73f9e0a3872e0c2d6b2d4bdcae82c6e715ef64`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -14,10 +14,10 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Automated evidence
 
-- **16/16 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
+- **20/20 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **28/28 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **31/31 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
@@ -136,3 +136,22 @@ See [parity scope](iphone-parity.md) for features still outside this preview.
 - Explicit Disconnect followed by Home/foreground remained disconnected. The final
   installed app retains the existing saved pairing. Raw UI receipts remain local
   and are not included in source or shared screenshots.
+
+## Streaming and short-first speech follow-up (0.2.4)
+
+- 20 JVM +31 physical Pixel tests pass (51 total), lint0errors/19warnings.
+- Pipeline tests verify short-first chunk bounds/Unicode preservation, ordered
+  playback, at most one prefetched clip, cancellation of playing/prefetched work,
+  and failure without skipping to later clips. They use synthetic playback, not
+  a stopwatch measurement of live gateway synthesis or subjective audio quality.
+- On-device event tests cover append/replace/snapshot deltas,16K display bounds,
+  gateway status labels, final replacement/deduplication, stale/cross-context
+  events, explicit reasoning/tool filtering, and cancel clearing transient text.
+- Synthetic Pixel UI screenshot inspected: user card, labelled Reply in progress,
+  assistant text, status and Cancel request remain visible; old intro hero is
+  hidden during an active run. No private conversation appears in this screenshot.
+- Final APK installed; saved owner connection and conversation restored on launch.
+  Test package removed. No new live chat request was submitted for this batch;
+  streaming verification used synthetic gateway events on the physical phone.
+- Parent review completed. Independent reviewer failed to start due tool
+  authorization errors (one retry); no independent pass is claimed for this batch.

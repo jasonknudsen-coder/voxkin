@@ -249,7 +249,7 @@ private fun TalkPage(m: VoiceModel) {
                     color = VoxkinBrand.secondary,
                 )
             }
-            if (latestUser == null && latestAgent == null && !keyboardVisible) {
+            if (latestUser == null && latestAgent == null && !m.requestPending && !keyboardVisible) {
                 Column(
                     Modifier.fillMaxWidth().padding(vertical = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -282,6 +282,10 @@ private fun TalkPage(m: VoiceModel) {
             }
             latestUser?.let { MessageCard(it, false) }
             latestAgent?.let { MessageCard(it, true) }
+            if (m.requestPending && m.streamingText.isNotBlank()) {
+                Text("Reply in progress", color = VoxkinBrand.secondary, fontSize = 12.sp)
+                MessageCard(ChatLine("assistant", m.streamingText), true)
+            }
         }
         TalkControls(
             m,

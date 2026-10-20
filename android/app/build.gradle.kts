@@ -2,7 +2,7 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
  namespace = "studio.voxkin.android"
  compileSdk = 36
- defaultConfig { applicationId = "studio.voxkin.android"; minSdk = 31; targetSdk = 36; versionCode = 5; versionName = "0.2.3"; testInstrumentationRunner = "studio.voxkin.android.IsolatedTestRunner" }
+ defaultConfig { applicationId = "studio.voxkin.android"; minSdk = 31; targetSdk = 36; versionCode = 6; versionName = "0.2.4"; testInstrumentationRunner = "studio.voxkin.android.IsolatedTestRunner" }
  buildFeatures { compose = true }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  kotlinOptions { jvmTarget = "17" }

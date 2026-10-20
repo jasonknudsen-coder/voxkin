@@ -16,6 +16,33 @@ class PresentationTest {
 
     private fun model(): VoiceModel = ViewModelProvider(ui.activity)[VoiceModel::class.java]
 
+    @Test fun streamingReplyIsClearlyLabelledAndDisappearsOnCancel() {
+        ui.runOnIdle {
+            val m = model()
+            flag(m, "connected", true)
+            flag(m, "busy", true)
+            @Suppress("UNCHECKED_CAST")
+            val run = VoiceModel::class.java.getDeclaredField("activeRun" + "$" + "delegate")
+                .apply { isAccessible = true }.get(m) as MutableState<String?>
+            run.value = "synthetic-stream"
+            m.status = "Your agent is replying…"
+            @Suppress("UNCHECKED_CAST")
+            val messages = VoiceModel::class.java.getDeclaredField("messages" + "$" + "delegate")
+                .apply { isAccessible = true }.get(m) as MutableState<List<ChatLine>>
+            messages.value = listOf(ChatLine("user", "Tell me something interesting."))
+            @Suppress("UNCHECKED_CAST")
+            val text = VoiceModel::class.java.getDeclaredField("streamingText" + "$" + "delegate")
+                .apply { isAccessible = true }.get(m) as MutableState<String>
+            text.value = "This answer is still arriving."
+        }
+        ui.onNodeWithText("Reply in progress").assertIsDisplayed()
+        ui.onNodeWithText("This answer is still arriving.").assertIsDisplayed()
+        capture("streaming")
+        ui.runOnIdle { model().cancelTurn() }
+        ui.onNodeWithText("Reply in progress").assertDoesNotExist()
+        ui.onNodeWithText("This answer is still arriving.").assertDoesNotExist()
+    }
+
     private fun flag(model: VoiceModel, name: String, value: Boolean) {
         @Suppress("UNCHECKED_CAST")
         val state = VoiceModel::class.java.getDeclaredField(name + "$" + "delegate")

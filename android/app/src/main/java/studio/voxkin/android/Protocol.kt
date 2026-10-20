@@ -125,6 +125,27 @@ object Protocol {
 
 /** Bounded requests without truncating speech; playback waits for each clip before the next. */
 object SpeechPlan {
+    /** iPhone-style short first sentence, then bounded larger clips. No text loss. */
+    fun fastChunks(text: String): List<String> {
+        val result = mutableListOf<String>()
+        val buffer = StringBuilder()
+        var count = 0
+        text.codePoints().forEachOrdered { code ->
+            buffer.appendCodePoint(code)
+            count++
+            val minimum = if (result.isEmpty()) 40 else 320
+            val maximum = if (result.isEmpty()) 180 else 600
+            if ((count >= minimum && code in listOf(46, 33, 63, 10)) ||
+                (count >= maximum && Character.isWhitespace(code)) || count >= maximum + 100) {
+                result.add(buffer.toString())
+                buffer.setLength(0)
+                count = 0
+            }
+        }
+        if (buffer.isNotEmpty()) result.add(buffer.toString())
+        return result.filter { it.isNotBlank() }
+    }
+
     fun chunks(text: String, max: Int = 4000): List<String> {
         require(max > 0)
         val result = mutableListOf<String>()

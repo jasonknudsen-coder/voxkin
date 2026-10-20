@@ -91,6 +91,9 @@ class VoiceModel @JvmOverloads constructor(
     var conversations by mutableStateOf<List<Conversation>>(emptyList())
         private set
 
+    var streamingText by mutableStateOf("")
+        private set
+
     var messages by mutableStateOf<List<ChatLine>>(emptyList())
         private set
 
@@ -378,6 +381,7 @@ class VoiceModel @JvmOverloads constructor(
         scopeJob?.cancel()
         turnJob?.cancel()
         activeRun = null
+        streamingText = ""
         transport?.close()
         transport = null
         connected = false
@@ -520,6 +524,7 @@ class VoiceModel @JvmOverloads constructor(
         val current = generation
         val run = UUID.randomUUID().toString()
         activeRun = run
+        streamingText = ""
         busy = true
         status = "Waiting for reply…"
         messages = messages + ChatLine("user", text)
@@ -553,12 +558,14 @@ class VoiceModel @JvmOverloads constructor(
                 } catch (e: CancellationException) {
                     if (current == generation && activeRun != null) {
                         activeRun = null
+                        streamingText = ""
                         busy = false
                         status = "Turn stopped or timed out; nothing was replayed."
                     }
                 } catch (e: Exception) {
                     if (current == generation) {
                         activeRun = null
+                        streamingText = ""
                         busy = false
                         status =
                             if (e is GatewayFailure) e.message ?: "Request failed"
@@ -576,8 +583,32 @@ class VoiceModel @JvmOverloads constructor(
         )
             return
         when (p.optString("state")) {
+            "delta" -> {
+                if (p.optString("channel") !in listOf("", "final", "commentary") ||
+                    p.optString("phase") !in listOf("", "final", "commentary")) return
+                val message = p.optJSONObject("message")
+                // Snapshots must be displayable assistant text, never reasoning or tools.
+                if (message != null) {
+                    if (message.optString("phase") !in listOf("", "final", "commentary") ||
+                        message.optString("channel") !in listOf("", "final", "commentary")) return
+                    val text = Protocol.finalText(message)
+                    if (text.isBlank()) return
+                    streamingText = text.take(16000)
+                } else if (p.opt("deltaText") is String) {
+                    val delta = p.getString("deltaText")
+                    streamingText = (if (p.optBoolean("replace")) delta else streamingText + delta).take(16000)
+                } else return
+                status = "Your agent is replying…"
+            }
+            "status" -> status = when (p.optString("phase")) {
+                "waiting_for_state" -> "Waiting for the gateway…"
+                "starting_model" -> "Your agent is thinking…"
+                "preparing_context", "memory_flushing" -> "Getting ready…"
+                else -> "Your agent is working…"
+            }
             "final" -> {
                 activeRun = null
+                streamingText = ""
                 busy = false
                 val text = p.optJSONObject("message")?.let { Protocol.finalText(it) }.orEmpty()
                 if (text.isNotBlank()) {
@@ -589,6 +620,7 @@ class VoiceModel @JvmOverloads constructor(
             "error",
             "aborted" -> {
                 activeRun = null
+                streamingText = ""
                 busy = false
                 status = "Turn ended without a reply. Nothing was replayed."
             }
@@ -599,6 +631,7 @@ class VoiceModel @JvmOverloads constructor(
         val run = activeRun
         val t = transport
         activeRun = null
+        streamingText = ""
         turnJob?.cancel()
         if (run != null) busy = false
         stopAudio()
@@ -623,51 +656,60 @@ class VoiceModel @JvmOverloads constructor(
                 if (useLocal)
                     require(localVoice && voices.any { it.id == selectedVoice && it.language == selectedLanguage })
                 else require(!restricted && gatewaySpeechAvailable) { "Gateway speech source is unavailable." }
-                for (chunk in SpeechPlan.chunks(SpeechText.prepare(text))) {
-                    currentCoroutineContext().ensureActive()
-                    val response =
-                        t.request(
-                            if (useLocal) "voxkin.speak" else "tts.speak",
-                            if (useLocal)
-                                obj(
-                                    "text" to chunk,
-                                    "language" to selectedLanguage,
-                                    "voice" to selectedVoice,
-                                )
-                            else obj("text" to chunk),
-                        )
-                    if (
-                        current != generation ||
-                            audioEpoch != audioGeneration ||
-                            !speechConsent ||
-                            recording ||
-                            settling
-                    )
-                        return@launchTask
-                    if (useLocal)
-                        require(
-                            response.optString("provider") == "voxkin-local" &&
-                                response.optString("voice") == selectedVoice &&
-                                response.optString("language") == selectedLanguage
-                        )
-                    require(response.optString("provider").isNotBlank())
-                    val encoded = response.optString("audioBase64")
-                    require(encoded.length <= 8_000_000)
-                    val bytes = Base64.getDecoder().decode(encoded)
-                    require(bytes.size in 1..6_000_000)
-                    require(
-                        response.optString("mimeType") in
-                            listOf(
-                                "audio/mpeg",
-                                "audio/mp3",
-                                "audio/wav",
-                                "audio/x-wav",
-                                "audio/mp4",
-                                "audio/aac",
+                SpeechPlayback.play(
+                    SpeechPlan.fastChunks(SpeechText.prepare(text)),
+                    synthesize = { chunk ->
+                        currentCoroutineContext().ensureActive()
+                        val response =
+                            t.request(
+                                if (useLocal) "voxkin.speak" else "tts.speak",
+                                if (useLocal)
+                                    obj(
+                                        "text" to chunk,
+                                        "language" to selectedLanguage,
+                                        "voice" to selectedVoice,
+                                    )
+                                else obj("text" to chunk),
                             )
-                    )
-                    playClip(bytes, current, audioEpoch)
-                }
+                        if (
+                            current != generation ||
+                                audioEpoch != audioGeneration ||
+                                !speechConsent ||
+                                recording ||
+                                settling
+                        )
+                            throw CancellationException("Speech context changed")
+                        if (useLocal)
+                            require(
+                                response.optString("provider") == "voxkin-local" &&
+                                    response.optString("voice") == selectedVoice &&
+                                    response.optString("language") == selectedLanguage
+                            )
+                        require(response.optString("provider").isNotBlank())
+                        val encoded = response.optString("audioBase64")
+                        require(encoded.length <= 8_000_000)
+                        val bytes = Base64.getDecoder().decode(encoded)
+                        require(bytes.size in 1..6_000_000)
+                        require(
+                            response.optString("mimeType") in
+                                listOf(
+                                    "audio/mpeg",
+                                    "audio/mp3",
+                                    "audio/wav",
+                                    "audio/x-wav",
+                                    "audio/mp4",
+                                    "audio/aac",
+                                )
+                        )
+                        bytes
+                    },
+                    playback = { bytes ->
+                        currentCoroutineContext().ensureActive()
+                        if (current != generation || audioEpoch != audioGeneration || !speechConsent || recording || settling)
+                            throw CancellationException("Speech context changed")
+                        playClip(bytes, current, audioEpoch)
+                    },
+                )
                 if (current == generation && audioEpoch == audioGeneration) status = "Reply ready."
             } finally {
                 if (audioEpoch == audioGeneration) speaking = false

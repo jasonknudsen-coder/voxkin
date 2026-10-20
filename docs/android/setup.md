@@ -71,6 +71,11 @@ launch may reconnect saved access. Forget removes the saved reconnect permission
 If restoration fails, choose a conversation in History or explicitly start New;
 sending remains blocked until a conversation is ready.
 
+Replies can appear progressively under **Reply in progress** when the gateway
+provides chat deltas. Only the completed reply is spoken. Speech uses a short
+first clip and prepares one following clip during playback; Stop cancels both.
+Restricted connections may remain final-only depending on their protocol.
+
 History belongs to the gateway, not a vendor-hosted conversation service. Delete
 requires confirmation and affects the selected gateway conversation. Forgetting
 local access is not server-side revocation; revoke a device at the gateway when
