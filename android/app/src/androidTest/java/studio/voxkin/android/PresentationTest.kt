@@ -78,6 +78,18 @@ class PresentationTest {
         ui.onNodeWithText("SECRET", substring = true).assertDoesNotExist()
     }
 
+    @Test fun hapticDeliveryIsDetachedWhileActivityIsPaused() {
+        lateinit var m: VoiceModel
+        fun sink(): Any? = HapticEvents::class.java.getDeclaredField("sink").apply { isAccessible = true }.get(m.haptics)
+        ui.runOnIdle { m = model(); assertNotNull(sink()) }
+        ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            assertNull(sink()); m.haptics.emit(HapticCue.SEND)
+        }
+        ui.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        ui.runOnIdle { assertNotNull(sink()) }
+    }
+
     @Test fun invitationQrProtectsWindowAndHidingClearsProtection() {
         ui.runOnIdle {
             val m = model()

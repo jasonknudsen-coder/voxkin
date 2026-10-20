@@ -57,6 +57,29 @@ class MainActivity : ComponentActivity() {
         modelFactory ?: androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(application)
     }
 
+    private val hapticSink: (HapticCue) -> Unit = { cue ->
+        val view = window.decorView
+        if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) &&
+            view.isAttachedToWindow && view.hasWindowFocus()) {
+            val effect = when (cue) {
+                HapticCue.SEND -> android.view.HapticFeedbackConstants.CONFIRM
+                HapticCue.STOP, HapticCue.MICROPHONE_READY -> android.view.HapticFeedbackConstants.CLOCK_TICK
+                HapticCue.HANDS_FREE_START -> android.view.HapticFeedbackConstants.CONTEXT_CLICK
+            }
+            view.performHapticFeedback(effect) // Respect system settings; never override user controls.
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        model.haptics.attach(hapticSink)
+    }
+
+    override fun onPause() {
+        model.haptics.detach(hapticSink)
+        super.onPause()
+    }
+
     private var setupScanPending = false
     private val setupScanner = registerForActivityResult(ScanContract()) { result ->
         if (setupScanPending) {
@@ -593,7 +616,7 @@ private fun TalkControls(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(
-                    onClick = { m.endHandsFree(); onTyping() },
+                    onClick = { m.endHandsFreeByUser(); onTyping() },
                     modifier =
                         Modifier.size(48.dp).testTag("typeInstead").semantics {
                             contentDescription = "Type instead"
@@ -624,7 +647,7 @@ private fun TalkControls(
                             keyboard?.hide()
                             when {
                                 m.conversationMode && m.speaking -> m.interruptHandsFreeReply()
-                                m.conversationMode -> m.endHandsFree()
+                                m.conversationMode -> m.endHandsFreeByUser()
                                 m.recording -> m.stopRecording()
                                 !m.connected -> {
                                     if (m.gateway.isBlank()) m.page = 2 else m.connect()
@@ -654,7 +677,7 @@ private fun TalkControls(
                 IconButton(
                     onClick = {
                         focus.clearFocus()
-                        if (m.conversationMode) m.endHandsFree() else if (capture) m.clearDraft() else m.stopAudio()
+                        if (m.conversationMode) m.endHandsFreeByUser() else if (capture) m.clearDraft() else m.stopAudioByUser()
                     },
                     enabled = m.connected,
                     modifier =
@@ -1267,7 +1290,7 @@ private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
             }
             if (m.speaking || m.feedbackPlaying) {
                 GroupDivider()
-                GroupAction("Stop audio", VoxkinSymbol.Stop) { m.stopAudio() }
+                GroupAction("Stop audio", VoxkinSymbol.Stop) { m.stopAudioByUser() }
             }
             GroupText(
                 "Language sets on-device dictation and the reply preference, independently of the speech source. Local voice selection applies to this phone, not other gateway users."
@@ -1309,10 +1332,14 @@ private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
         }
         GroupSection("Last response timing") {
             val rows = listOf(
+                "Last word update to Send" to m.timing.lastWordToSend,
+                "Finishing dictation" to m.timing.finishingDictation,
+                "Send to receipt cue" to m.timing.receiptCue,
                 "First text update" to m.timing.firstUpdate,
                 "Complete reply" to m.timing.reply,
                 "Gateway audio request" to m.timing.speechRequest,
                 "Playback setup" to m.timing.playbackSetup,
+                "Speech preparation total" to m.timing.speechPreparation,
                 "Send to answer audio" to m.timing.firstAudio,
             )
             if (rows.all { it.second == null })
@@ -1321,7 +1348,7 @@ private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
                 if (millis != null) GroupText("$label: ${String.format(java.util.Locale.getDefault(), "%.2f", millis / 1000.0)} s")
             }
             if (m.speechProvider.isNotBlank()) GroupText("Spoken provider: ${m.speechProvider}")
-            GroupText("Reply/update times start at Send. Gateway audio includes preparation and transfer; playback setup measures the local wait before audio starts. Durations stay in memory on this phone and reset on disconnect.")
+            GroupText("Reply/update times start at Send. Last-word time includes review and edits; finishing dictation measures an explicit Stop-to-finalization wait. Receipt timing requires actual cue playback. Gateway audio includes preparation and transfer; speech preparation total ends at first answer playback. Durations stay in memory on this phone and reset on disconnect.")
         }
         GroupSection("Troubleshooting") {
             GroupAction(

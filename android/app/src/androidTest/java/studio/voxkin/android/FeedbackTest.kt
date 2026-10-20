@@ -22,7 +22,7 @@ class FeedbackTest {
         var calls = 0; var stops = 0
         var gate: CompletableDeferred<Unit>? = null
         override fun stop() { stops++ }
-        override suspend fun play(bytes: ByteArray, valid: () -> Boolean) { if (valid()) { calls++; gate?.await() } }
+        override suspend fun play(bytes: ByteArray, started: () -> Unit, valid: () -> Boolean) { if (valid()) { calls++; started(); gate?.await() } }
     }
     private class Fixture(val m: VoiceModel, val p: Player) {
         val savedOption = SecureStore(ApplicationProvider.getApplicationContext<Application>()).get("conversationalFeedback")
@@ -88,6 +88,31 @@ class FeedbackTest {
                         .apply { isAccessible = true }.invoke(f.m, generation, if (mode == "partial") null else "Spoken")
                     f.m.send()
                     assertEquals(mode, if (mode == "final") 1 else 0, f.p.calls)
+                } finally { dispose(f) }
+            }
+        }
+    }
+    @Test fun captureTimingSurvivesReviewButNotStopOrNextTypedTurn() {
+        inst.runOnMainSync {
+            for (stop in listOf(false, true)) {
+                val f = create()
+                try {
+                    VoiceModel::class.java.getDeclaredMethod("prepareCaptureProvenance").apply { isAccessible = true }.invoke(f.m)
+                    val generation = get(f.m, "speechGeneration") as Int
+                    VoiceModel::class.java.getDeclaredMethod("finishRecognition", Int::class.javaPrimitiveType, String::class.java)
+                        .apply { isAccessible = true }.invoke(f.m, generation, "Spoken")
+                    f.m.draft = "Reviewed words"
+                    if (stop) f.m.stopAudioByUser()
+                    f.m.send()
+                    if (stop) assertNull(f.m.timing.lastWordToSend) else assertNotNull(f.m.timing.lastWordToSend)
+                    assertNull(f.m.timing.finishingDictation)
+                    assertNull(f.m.timing.receiptCue) // Edited draft is not a spoken turn.
+                    f.m.speechConsent = false
+                    final(f)
+                    f.m.draft = "Typed next turn"
+                    f.m.send()
+                    assertNull(f.m.timing.lastWordToSend)
+                    assertNull(f.m.timing.finishingDictation)
                 } finally { dispose(f) }
             }
         }
@@ -172,6 +197,7 @@ class FeedbackTest {
                 if (!playing) Thread.sleep(5)
             }
             assertTrue("Receipt reached real playback", playing)
+            inst.runOnMainSync { assertNotNull(f.m.timing.receiptCue); assertNull(f.m.timing.firstAudio) }
             inst.runOnMainSync { final(f); assertFalse(f.m.feedbackPlaying) }
             var complete = false
             val end = android.os.SystemClock.elapsedRealtime() + 5000

@@ -34,6 +34,7 @@ class VoiceModel @JvmOverloads constructor(
     app: Application, private val automaticConnection: Boolean = true
 ) : AndroidViewModel(app) {
     private val store = SecureStore(app)
+    internal val haptics = HapticEvents()
     var gateway by mutableStateOf(store.get("lastGateway") ?: "")
     var token by mutableStateOf("")
     var invitation by mutableStateOf("")
@@ -61,6 +62,7 @@ class VoiceModel @JvmOverloads constructor(
         private set
 
     private val spokenDraft = SpokenDraft()
+    private val captureTiming = CaptureTiming()
     private var draftRevision = 0L
     private var captureRevision = -1L
     private var captureContext = ""
@@ -71,6 +73,7 @@ class VoiceModel @JvmOverloads constructor(
         get() = draftValue
         set(value) {
             spokenDraft.clear()
+            captureTiming.draftChanged(value, conversationContext())
             draftRevision++
             draftValue = value
             draftContext = if (value.isBlank()) null else conversationContext()
@@ -216,7 +219,17 @@ class VoiceModel @JvmOverloads constructor(
 
     fun startHandsFree(token: String) {
         if (token != handsFreeStartToken() || !canStartHandsFree) return
-        handsFree.start()
+        if (handsFree.start()) haptics.emit(HapticCue.HANDS_FREE_START)
+    }
+
+    fun endHandsFreeByUser() {
+        if (conversationMode) haptics.emit(HapticCue.STOP)
+        endHandsFree()
+    }
+
+    fun stopAudioByUser() {
+        haptics.emit(HapticCue.STOP)
+        stopAudio()
     }
 
     fun endHandsFree() {
@@ -234,6 +247,7 @@ class VoiceModel @JvmOverloads constructor(
 
     fun interruptHandsFreeReply() {
         if (!conversationMode || !speaking || requestPending) return
+        haptics.emit(HapticCue.STOP)
         stopAudio(endHandsFree = false)
         handsFree.replyFinished()
     }
@@ -759,6 +773,7 @@ class VoiceModel @JvmOverloads constructor(
         activeRun = null
         clearProgress()
         timing = TurnTiming()
+        captureTiming.clear()
         speechProvider = ""
         transport?.close()
         transport = null
@@ -997,6 +1012,7 @@ class VoiceModel @JvmOverloads constructor(
         }
         val t = transport ?: return
         subscribeProgress()
+        val captureMetrics = captureTiming.consume(conversationContext())
         val spoken = spokenDraft.consume(draft, conversationContext())
         val feedbackEligible = spoken && speechConsent && conversationalFeedback
         val requestText = replyLength.requestText(text, language, feedbackEligible && !restricted && progressSubscriptionAvailable)
@@ -1004,7 +1020,8 @@ class VoiceModel @JvmOverloads constructor(
         val current = generation
         val run = UUID.randomUUID().toString()
         activeRun = run
-        timing = TurnTiming().sent(android.os.SystemClock.elapsedRealtime())
+        haptics.emit(HapticCue.SEND)
+        timing = TurnTiming().sent(android.os.SystemClock.elapsedRealtime(), captureMetrics)
         speechProvider = ""
         clearProgress()
         beginFeedback(run, t, feedbackEligible)
@@ -1180,7 +1197,9 @@ class VoiceModel @JvmOverloads constructor(
             try {
                 turn.accepted.await()
                 if (!feedbackValid(turn) || !feedback.claimReceipt(token)) return@launch
-                try { feedbackAudio.play(ReceiptTone.wav()) { feedbackValid(turn) } }
+                try { feedbackAudio.play(ReceiptTone.wav(), started = {
+                    if (feedbackValid(turn)) timing = timing.acknowledged(android.os.SystemClock.elapsedRealtime())
+                }) { feedbackValid(turn) } }
                 catch (_: Exception) { currentCoroutineContext().ensureActive() }
                 if (!feedbackValid(turn)) return@launch
                 feedback.receiptSettled(token)
@@ -1363,6 +1382,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun stopAudio(endHandsFree: Boolean = true) {
+        captureTiming.clear()
         stopFeedback()
         spokenDraft.clear()
         captureTrusted = false
@@ -1499,12 +1519,22 @@ class VoiceModel @JvmOverloads constructor(
         }
     }
 
+    internal fun microphoneBecameReady(current: Int) {
+        if (current != speechGeneration || !recording || settling || microphoneReady) return
+        microphoneReady = true
+        haptics.emit(HapticCue.MICROPHONE_READY)
+        status = if (conversationMode)
+            "Hands-free listening. Pause to send automatically. Stop ends conversation."
+        else "Listening — speak now. Tap Stop when finished."
+    }
+
     private fun prepareCaptureProvenance() {
         val trustedBase = draft.isBlank() || spokenDraft.matches(draft, conversationContext())
         stopAudio(endHandsFree = false)
         captureContext = conversationContext()
         captureRevision = draftRevision
         captureTrusted = trustedBase
+        captureTiming.begin(captureContext)
     }
 
     fun startRecording() {
@@ -1529,12 +1559,7 @@ class VoiceModel @JvmOverloads constructor(
                     r.setRecognitionListener(
                         object : RecognitionListener {
                             override fun onReadyForSpeech(params: Bundle?) {
-                                if (current == speechGeneration) {
-                                    microphoneReady = true
-                                    status = if (conversationMode)
-                                        "Hands-free listening. Pause to send automatically. Stop ends conversation."
-                                    else "Listening — speak now. Tap Stop when finished."
-                                }
+                                microphoneBecameReady(current)
                             }
 
                             override fun onBeginningOfSpeech() {}
@@ -1596,6 +1621,7 @@ class VoiceModel @JvmOverloads constructor(
                                     // Empty callbacks must not erase useful words from this capture.
                                     if (!hypothesis.isNullOrBlank() && hypothesis != partial) {
                                         partial = hypothesis
+                                        captureTiming.changed(hypothesis, android.os.SystemClock.elapsedRealtime())
                                         handsFree.wordsChanged()
                                     }
                                 }
@@ -1637,6 +1663,7 @@ class VoiceModel @JvmOverloads constructor(
     fun stopRecording(discard: Boolean = false) {
         if (discard) {
             spokenDraft.clear()
+            captureTiming.clear()
             captureTrusted = false
             handsFree.stop()
             speechGeneration++
@@ -1650,6 +1677,7 @@ class VoiceModel @JvmOverloads constructor(
             partial = ""
             level = 0f
         } else if (recording) {
+            captureTiming.finishing(android.os.SystemClock.elapsedRealtime())
             handsFree.finishing()
             recording = false
             microphoneReady = false
@@ -1667,6 +1695,7 @@ class VoiceModel @JvmOverloads constructor(
         if (!autoSend) handsFree.stop()
         val recovered = text.isNullOrBlank() && partial.isNotBlank()
         val captured = text?.takeIf { it.isNotBlank() } ?: partial
+        captureTiming.complete(text, android.os.SystemClock.elapsedRealtime())
         speechGeneration++
         settleJob?.cancel()
         recognizer?.destroy()

@@ -20,10 +20,12 @@ class SpeechTextTest {
         fixtures.forEach { (input, expected) -> assertEquals(input, expected, SpeechText.prepare(input)) }
     }
 
-    @Test fun nestedAndReferenceLinksSpeakLabelsNotDestinations() {
+    @Test fun nestedLinksAndLiteralReferencesMatchIphoneDisplay() {
         assertEquals("Read the guide.", SpeechText.prepare("Read [the **guide**](https://example.com/a_(b))."))
-        assertEquals("Read the guide.", SpeechText.prepare("Read [the guide][ref].\n\n[ref]: https://example.com"))
+        assertEquals("Read [the guide][ref].\n\n[ref]: https://example.com", SpeechText.prepare("Read [the guide][ref].\n\n[ref]: https://example.com"))
         assertEquals("Español 😀 café", SpeechText.prepare("**Español** 😀 *café*"))
         assertEquals("first\n\nsecond", SpeechText.prepare("first\n\nsecond"))
+        assertEquals("gone gone", SpeechText.prepare("~gone~ ~~gone~~"))
+        assertEquals("two\n\nlines\n", SpeechText.prepare("**two\n\nlines**\n"))
     }
 }

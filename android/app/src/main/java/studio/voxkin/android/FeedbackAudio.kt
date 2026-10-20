@@ -11,7 +11,7 @@ import kotlinx.coroutines.withTimeout
 
 internal interface FeedbackPlayback {
     fun stop()
-    suspend fun play(bytes: ByteArray, valid: () -> Boolean)
+    suspend fun play(bytes: ByteArray, started: () -> Unit = {}, valid: () -> Boolean)
 }
 
 /** Independent resource owner: never touches answer audio, status, timing or microphone. */
@@ -30,7 +30,7 @@ internal class FeedbackAudio(private val context: Context, private val changed: 
         }
     }
     override fun stop() { active?.close() }
-    override suspend fun play(bytes: ByteArray, valid: () -> Boolean) {
+    override suspend fun play(bytes: ByteArray, started: () -> Unit, valid: () -> Boolean) {
         if (!valid()) return
         val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
@@ -54,7 +54,7 @@ internal class FeedbackAudio(private val context: Context, private val changed: 
                     clip.player.setDataSource(clip.file.path)
                     clip.player.setOnPreparedListener { p ->
                         if (cont.isActive && !clip.closed && active === clip && valid() && p.duration in 1..12000) {
-                            try { p.start(); changed(true) }
+                            try { p.start(); started(); changed(true) }
                             catch (e: Exception) { if (cont.isActive) cont.resumeWith(Result.failure(e)) }
                         } else if (cont.isActive) cont.cancel()
                     }

@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.15 (17), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `9dc1545caec9fa78ed540a249c75fc8e3ab9f0fb78d7f066142d7ef7e0825107`.
+- Version0.2.16 (18), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `683ecb1fec973afde92824dbc25a95a43df7dff1f6152dfbced3d74de1b091e4`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -14,10 +14,10 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Automated evidence
 
-- **62/62 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
+- **68/68 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **94/94 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **99/99 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
@@ -372,3 +372,19 @@ it. Mocked TLS exercises the actual serialized handshake failure with one reques
 no approval/retry. Device tests cover lifecycle/storage and manual retry clearing;
 the latter deliberately fails locally, not a successful live reconnect claim.
 Selectable command panel screenshot inspected; no approval commands executed.
+
+## Final phone polish (0.2.16)
+
+68 JVM +99 Pixel tests passed (167 total), with the complete device suite rerun
+after the final timing-reset fix. Lint remains0errors20warnings2hints.
+Foreground lifecycle haptics, shared inline speech/display text, capture-tail and
+explicit-finishing timing, actual receipt-start and first-answer preparation
+measurements complete the audited core-phone implementation pass.
+
+Read-only review found Stop/preview retained stale capture timing; fixed and
+regression-tested. Reviewed edits retain timing, Stop clears it, and the next typed
+turn cannot inherit it. Actual local receipt playback remains separate from first
+answer audio/provider. Synthetic fixture tests do not establish tactile feel, live
+commentary delivery, acoustic hands-free quality or real QR/admin owner acceptance.
+No live Send, synthesis, history mutations or approval commands were used.
+The final installed preview is not a public release or full universal iOS parity.

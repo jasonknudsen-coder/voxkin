@@ -27,8 +27,7 @@ This is **core phone presentation parity**, not a claim that every iOS feature
 has shipped on Android. Android uses its own keyboard, permission dialogs,
 accessibility services and on-device recognition implementation.
 
-Still outside this preview: conversational receipt feedback and Android
-Auto. The iOS CarPlay integration does not automatically confer Android Auto
+Still outside this preview: Android Auto. The iOS CarPlay integration does not automatically confer Android Auto
 support. Returning to the foreground reconnects previously approved saved access and
 restores the scoped conversation without replaying speech or messages.
 
@@ -72,12 +71,12 @@ Automatic stable owner titles and missing-preview enrichment are implemented (0.
 Owner archive filtering now explicitly excludes archived sessions, as on iOS.
 
 **Response experience:** chat delta/status streaming is implemented; persisted
-`session.message` commentary/interim updates and optional owner subscriptions are implemented (0.2.12). Optional spoken-turn receipt tone and one real progress update are implemented (0.2.13). Response timing/provider diagnostics are implemented (0.2.10), excluding dictation-tail and receipt-cue timings.
+`session.message` commentary/interim updates and optional owner subscriptions are implemented (0.2.12). Optional spoken-turn receipt tone and one real progress update are implemented (0.2.13). Response timing/provider diagnostics are implemented (0.2.10), extended with dictation-tail, explicit finishing, actual receipt-start and answer-preparation timing (0.2.16).
 Reply display now supports iPhone-style inline Markdown (0.2.14), preserving whitespace; Talk user/progress cards remain plain and History formats both roles. Speech now applies inline Markdown and punctuation cleanup; the
 short-first-chunk and one-next-prefetch pipeline is now implemented. Android currently
 speaks bounded chunks for longer replies while iOS limits speech to4,000characters.
 
-**Capture/lifecycle:** explicit hands-free opt-in is implemented (0.2.6); haptic cues remain missing. Android now retains the last nonempty
+**Capture/lifecycle:** explicit hands-free opt-in is implemented (0.2.6); foreground-only Send, explicit Stop, hands-free start and microphone-ready haptic cues are implemented (0.2.16). Android now retains the last nonempty
 partial hypothesis for review when final recognition fails or times out; Cancel
 still discards it. Foreground reconnect and saved conversation restoration are now implemented.
 Android language is explicitly English/Spanish independent of speech source;
@@ -374,3 +373,19 @@ Retry. Invalid IDs use a fixed REQUEST_ID placeholder. Background/foreground doe
 not retry pending approval; explicit retry/context changes clear stale state.
 62 JVM +94 Pixel tests passed, including mocked TLS and no-network device lifecycle
 checks. Successful live approval/reconnect remains human acceptance, not claimed.
+
+## Final phone polish (0.2.16)
+
+- Foreground-only platform haptics respect OS settings; internal cleanup and stale
+  recognizer callbacks are silent. No background event replay.
+- Speech uses the same whitespace-preserving inline text renderer as display,
+  followed by speech-only punctuation cleanup. Reference syntax stays literal.
+- Diagnostics include last changed recognition to Send (including review delay),
+  explicit finishing duration, actual receipt start and final-to-first-answer audio.
+  Stop/preview clear capture metrics; reviewed edits preserve them; Send consumes once.
+- Earlier follow-up sections above are historical checkpoints, not current gaps.
+
+The audited core-phone implementation pass is complete. Real owner acceptance of
+acoustic dictation/hands-free, live commentary delivery, QR and administration flows
+remains separate. Android Auto and the explicit platform/product differences above
+remain outside this preview; this is not a universal/full-iOS-parity claim.
