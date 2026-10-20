@@ -814,6 +814,18 @@ private fun HistoryPage(m: VoiceModel) {
                 color = VoxkinBrand.secondary,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
+        if (m.connected && m.messages.any { it.role == "user" || it.role == "assistant" }) {
+            GroupSection(
+                "Selected conversation",
+                "Latest 50 loaded messages. Opening history never plays audio.",
+            ) {
+                GroupAction("Continue in Talk", enabled = enabled) { m.page = 0 }
+            }
+            m.messages
+                .filter { it.role == "user" || it.role == "assistant" }
+                .takeLast(50)
+                .forEach { line -> MessageCard(line, agent = line.role == "assistant") }
+        }
         Text(
             m.status,
             fontSize = 12.sp,
@@ -878,6 +890,7 @@ private fun HistoryPage(m: VoiceModel) {
 private fun SettingsPage(m: VoiceModel) {
     var setup by remember { mutableStateOf("") }
     var confirmForget by remember { mutableStateOf(false) }
+    var troubleshootingExpanded by remember { mutableStateOf(false) }
     val idle = !m.busy && !m.recording && !m.settling && !m.speaking
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -992,8 +1005,17 @@ private fun SettingsPage(m: VoiceModel) {
                 )
             }
             GroupText(
-                "Uses the gateway’s configured voice and fallback providers. Reply text may be sent to those providers. Enable only if you accept this gateway’s policy."
+                "Allows reply audio from your selected speech source on the gateway. Gateway default uses its configured voice and fallback providers; Local voices uses the gateway’s local voice catalog, not Android text-to-speech. Reply text may be sent to configured providers. Enable only if you accept this gateway’s policy."
             )
+            GroupDivider()
+            GroupPicker(
+                "Speech source",
+                m.speechSource,
+                m.sourceOptions,
+                enabled = m.connected && idle && m.sourceOptions.isNotEmpty(),
+            ) {
+                m.chooseSpeechSource(it)
+            }
             GroupDivider()
             GroupPicker(
                 "Language",
@@ -1003,7 +1025,7 @@ private fun SettingsPage(m: VoiceModel) {
             ) {
                 m.chooseLanguage(it)
             }
-            if (m.voices.isNotEmpty()) {
+            if (m.speechSource == "local" && m.voices.isNotEmpty()) {
                 GroupDivider()
                 GroupPicker(
                     "Voice",
@@ -1015,6 +1037,14 @@ private fun SettingsPage(m: VoiceModel) {
                 ) {
                     m.chooseVoice(it)
                 }
+            }
+            if (
+                m.speechSource == "local" &&
+                    m.voices.none { it.language == m.language.substringBefore('-') }
+            ) {
+                GroupText(
+                    "No local voice is available for this language. Choose another language or restore the gateway’s voice plugin; no automatic fallback is used."
+                )
             }
             GroupDivider()
             GroupAction(
@@ -1029,20 +1059,7 @@ private fun SettingsPage(m: VoiceModel) {
                 GroupAction("Stop audio", VoxkinSymbol.Stop) { m.stopAudio() }
             }
             GroupText(
-                "Language sets on-device dictation. Voice selection applies to this phone, not other gateway users."
-            )
-        }
-        GroupSection(
-            "On-device dictation",
-            "Dictation uses Android’s on-device recognizer only. If your selected language model is unavailable, type instead; no cloud transcription fallback is used.",
-        ) {
-            GroupText(m.languageStatus)
-            GroupDivider()
-            GroupAction("Check language model", enabled = idle) { m.checkLanguage() }
-            GroupDivider()
-            GroupAction("Download selected language", enabled = idle) { m.downloadLanguage() }
-            GroupText(
-                "Downloads the selected speech model to this phone. No microphone audio is uploaded."
+                "Language sets on-device dictation and the reply preference, independently of the speech source. Local voice selection applies to this phone, not other gateway users."
             )
         }
         GroupSection(
@@ -1078,6 +1095,29 @@ private fun SettingsPage(m: VoiceModel) {
                 }
             }
             GroupText(m.replyLength.detail)
+        }
+        GroupSection("Troubleshooting") {
+            GroupAction(
+                if (troubleshootingExpanded) "Hide on-device dictation details"
+                else "Show on-device dictation details",
+                VoxkinSymbol.Chevron,
+            ) {
+                troubleshootingExpanded = !troubleshootingExpanded
+            }
+            if (troubleshootingExpanded) {
+                GroupDivider()
+                GroupText("On-device dictation: ${m.languageStatus}")
+                GroupText(
+                    "Dictation uses Android’s on-device recognizer only. If your selected language model is unavailable, type instead; no cloud transcription fallback is used."
+                )
+                GroupDivider()
+                GroupAction("Check language model", enabled = idle) { m.checkLanguage() }
+                GroupDivider()
+                GroupAction("Download selected language", enabled = idle) { m.downloadLanguage() }
+                GroupText(
+                    "Downloads the selected speech model to this phone. No microphone audio is uploaded."
+                )
+            }
         }
         GroupSection("Privacy & connection") {
             GroupText(

@@ -45,6 +45,15 @@ The primary control becomes a Send arrow only after transcription finishes.
 Send is a separate explicit action; use the keyboard button to type instead. Missing
 on-device speech support falls back to typing, not cloud transcription.
 
+Speech source selects **Gateway default** (`tts.speak`) or **Local voices**
+(`voxkin.speak`) when advertised by an owner gateway. Restricted access only permits
+Local voices. Source choice is saved for this gateway/access mode; no alternate
+source is silently substituted. “Local voices” means the gateway plugin's catalog,
+not Android text-to-speech.
+
+Android model checks/downloads are under **Troubleshooting → Show on-device
+dictation details**. They concern speech input, not the spoken reply source.
+
 Gateway speech is opt-in: reply text may be processed by the configured gateway
 speech provider and fallback. Consent and voice selection are remembered for that
 gateway after authentication. Preview voice uses the same consent and Stop audio

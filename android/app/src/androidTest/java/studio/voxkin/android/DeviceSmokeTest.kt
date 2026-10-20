@@ -27,6 +27,79 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class DeviceSmokeTest {
     @Test
+    fun mismatchedRunIdStopsWithoutReplayingOrAdoptingRun() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            @Suppress("UNCHECKED_CAST")
+            val state = VoiceModel::class.java.getDeclaredField("connected" + "$" + "delegate")
+                .apply { isAccessible = true }.get(model) as MutableState<Boolean>
+            state.value = true
+            var calls = 0
+            VoiceModel::class.java.getDeclaredField("transport").apply { isAccessible = true }.set(model,
+                object : Transport {
+                    override suspend fun request(method: String, params: JSONObject): JSONObject {
+                        calls++
+                        return obj("runId" to "unexpected-run")
+                    }
+                    override fun close() {}
+                })
+            model.draft = "Synthetic request"
+            model.send()
+            assertEquals(1, calls)
+            assertFalse(model.requestPending)
+            assertTrue(model.status.contains("Outcome unknown"))
+            model.disconnect()
+        }
+    }
+
+    @Test
+    fun speechSourcesRouteExplicitlyAndRestrictedCannotChooseGateway() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val gateway = "wss://source-${UUID.randomUUID()}.example.com"
+        instrumentation.runOnMainSync {
+            val app = ApplicationProvider.getApplicationContext<Application>()
+            val model = VoiceModel(app)
+            model.gateway = gateway
+            fun set(name: String, value: Any) {
+                @Suppress("UNCHECKED_CAST")
+                val state = VoiceModel::class.java.getDeclaredField(name + "$" + "delegate")
+                    .apply { isAccessible = true }.get(model) as MutableState<Any>
+                state.value = value
+            }
+            set("connected", true)
+            set("gatewaySpeechAvailable", true)
+            set("voices", listOf(GatewayVoice("test-voice", "Test", "en")))
+            VoiceModel::class.java.getDeclaredField("localVoice").apply { isAccessible = true }.set(model, true)
+            model.voice = "test-voice"
+            model.speechConsent = true
+            val methods = mutableListOf<String>()
+            VoiceModel::class.java.getDeclaredField("transport").apply { isAccessible = true }.set(model,
+                object : Transport {
+                    override suspend fun request(method: String, params: JSONObject): JSONObject {
+                        methods.add(method)
+                        throw GatewayFailure("Synthetic response ends preview before audio playback")
+                    }
+                    override fun close() {}
+                })
+            try {
+                model.chooseSpeechSource("gateway")
+                model.previewVoice()
+                assertEquals(listOf("tts.speak"), methods)
+                model.chooseSpeechSource("local")
+                model.previewVoice()
+                assertEquals(listOf("tts.speak", "voxkin.speak"), methods)
+                model.restricted = true
+                model.chooseSpeechSource("gateway")
+                assertEquals("local", model.speechSource)
+                assertFalse(model.sourceOptions.any { it.first == "gateway" })
+            } finally {
+                model.disconnect()
+                SecureStore(app).remove("speech-source:owner:$gateway")
+            }
+        }
+    }
+
+    @Test
     fun clearDraftDiscardsPartialCaptureWithoutSending() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             val model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
@@ -288,6 +361,14 @@ class DeviceSmokeTest {
                 .apply { isAccessible = true }
                 .set(model, fake)
             model.speechConsent = true
+            @Suppress("UNCHECKED_CAST")
+            val source = VoiceModel::class.java.getDeclaredField("speechSource" + "$" + "delegate")
+                .apply { isAccessible = true }.get(model) as MutableState<String>
+            source.value = "gateway"
+            @Suppress("UNCHECKED_CAST")
+            val available = VoiceModel::class.java.getDeclaredField("gatewaySpeechAvailable" + "$" + "delegate")
+                .apply { isAccessible = true }.get(model) as MutableState<Boolean>
+            available.value = true
             VoiceModel::class
                 .java
                 .getDeclaredMethod("speak", String::class.java)

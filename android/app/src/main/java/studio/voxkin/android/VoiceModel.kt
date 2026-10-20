@@ -63,6 +63,13 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
     var language by mutableStateOf(store.get("language") ?: "en-US")
     var speechConsent by mutableStateOf(false)
     var voice by mutableStateOf("")
+    var speechSource by mutableStateOf("local")
+        private set
+    private var gatewaySpeechAvailable by mutableStateOf(false)
+    val sourceOptions: List<Pair<String, String>> get() = buildList {
+        if (!restricted && gatewaySpeechAvailable) add("gateway" to "Gateway default")
+        if (voices.isNotEmpty() || speechSource == "local") add("local" to "Local voices")
+    }
     var voices by mutableStateOf<List<GatewayVoice>>(emptyList())
         private set
 
@@ -147,9 +154,15 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
         language = value
         store.put("language", value)
         val savedVoice = store.get("voice:${gateway.trim()}:$value")
-        voice = voices.firstOrNull { it.language == value.substringBefore('-') && it.id == savedVoice }?.id
-            ?: voices.firstOrNull { it.language == value.substringBefore('-') }?.id.orEmpty()
+        voice = savedVoice ?: voices.firstOrNull { it.language == value.substringBefore('-') }?.id.orEmpty()
         checkLanguage()
+    }
+
+    fun chooseSpeechSource(value: String) {
+        if (!connected || busy || recording || settling || speaking) return
+        if (sourceOptions.none { it.first == value }) return
+        speechSource = value
+        store.put("speech-source:${credentialKey()}", value)
     }
 
     fun chooseVoice(value: String) {
@@ -247,6 +260,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                         store.put(key, grant.ifBlank { secret })
                         val methods = h.optJSONObject("features")?.strings("methods").orEmpty()
                         localVoice = methods.contains("voxkin.speak")
+                        gatewaySpeechAvailable = methods.contains("tts.speak")
                     }
                     if (current != generation) return@launch
                     if (restricted) store.put(key, secret)
@@ -258,6 +272,9 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                             it.getString("id") to it.optString("name", it.getString("id"))
                         }
                     if (!restricted) agent = agents.firstOrNull()?.first ?: error("No agents")
+                    speechSource = if (restricted) "local" else
+                        store.get("speech-source:${credentialKey()}")
+                            ?: if (localVoice) "local" else "gateway"
                     connected = true
                     speechConsent = store.get("speech-consent:${gateway.trim()}") == "true"
                     status = "Connected. Tap Record or type a message."
@@ -349,6 +366,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
         languageRecognizer = null
         stopAudio()
         speechConsent = false
+        gatewaySpeechAvailable = false
         voices = emptyList()
         conversations = emptyList()
         messages = emptyList()
@@ -362,6 +380,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
 
     fun forget() {
         disconnect()
+        store.remove("speech-source:${credentialKey()}")
         store.remove(credentialKey())
         store.remove("speech-consent:${gateway.trim()}")
         if (!restricted) store.remove("identity:${gateway.trim()}")
@@ -426,8 +445,8 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                                     "deliver" to false,
                                 ),
                             )
-                        if (current == generation && activeRun == run)
-                            activeRun = result.optString("runId", run)
+                        if (result.optString("runId", run) != run)
+                            throw GatewayFailure("Gateway returned an unexpected request ID. Outcome unknown; nothing was replayed.")
                         while (current == generation && activeRun != null) delay(200)
                     }
                 } catch (e: CancellationException) {
@@ -494,19 +513,21 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
         stopAudio()
         val current = generation
         val audioEpoch = audioGeneration
+        val useLocal = speechSource == "local"
         val selectedVoice = voice
         val selectedLanguage = language.substringBefore('-')
         speaking = true
         speechJob = launchTask {
             try {
-                if (localVoice)
-                    require(voices.any { it.id == selectedVoice && it.language == selectedLanguage })
+                if (useLocal)
+                    require(localVoice && voices.any { it.id == selectedVoice && it.language == selectedLanguage })
+                else require(!restricted && gatewaySpeechAvailable) { "Gateway speech source is unavailable." }
                 for (chunk in SpeechPlan.chunks(text)) {
                     currentCoroutineContext().ensureActive()
                     val response =
                         t.request(
-                            if (localVoice) "voxkin.speak" else "tts.speak",
-                            if (localVoice)
+                            if (useLocal) "voxkin.speak" else "tts.speak",
+                            if (useLocal)
                                 obj(
                                     "text" to chunk,
                                     "language" to selectedLanguage,
@@ -522,7 +543,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                             settling
                     )
                         return@launchTask
-                    if (localVoice)
+                    if (useLocal)
                         require(
                             response.optString("provider") == "voxkin-local" &&
                                 response.optString("voice") == selectedVoice &&
@@ -650,6 +671,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
             languageStatus = "On-device recognition is unavailable; type instead."
             return
         }
+        languageStatus = "Checking on-device language model…"
         languageRecognizer?.destroy()
         try {
             languageRecognizer =
@@ -941,7 +963,10 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                             id,
                             listOf("label", "autoLabel", "title", "derivedTitle", "displayName")
                                 .map { row.optString(it) }
-                                .firstOrNull { it.isNotBlank() } ?: "Conversation",
+                                .firstOrNull { it.isNotBlank() }
+                                ?.let { Protocol.text(obj("role" to "user", "text" to it)) }
+                                ?.takeUnless { it.startsWith("[Voxkin reply preference") }
+                                ?: "Conversation",
                             row.optString("sessionId"),
                         )
                 }
@@ -988,7 +1013,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                     if (text.isBlank()) null else ChatLine(it.optString("role"), text)
                 }
             draft = ""
-            page = 0
+            page = 1
             status = "Conversation loaded (latest page)."
         }
     }

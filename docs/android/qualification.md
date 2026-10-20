@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.0 (2), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `ef32fade8f8d666101d00672046be6e45af5485f66db9d454d1af0c8243639d5`.
+- Version0.2.1 (3), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `17ea97e47fc602b0b7b26efd45e0e29dce02fd9d63dde80a81885db5f6d5c2b6`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -17,7 +17,7 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 - **14/14 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **14/14 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **18/18 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   background/foreground no automatic connection or recording; language support probe;
@@ -88,3 +88,14 @@ The UI tests initially failed before executing because the transitive Espresso3.
 input injector was incompatible with Android17. Pinning Espresso3.7 resolved it;
 the final full14-test device run passed. These are not hidden application failures.
 See [parity scope](iphone-parity.md) for features still outside this preview.
+
+## Speech-source and parity audit follow-up
+
+- Explicit owner Gateway default / Local voices routing tested with fake transport;
+  restricted devices cannot select Gateway default.
+- Unexpected send acknowledgment run ID is rejected without replay/adoption.
+- Loaded earlier history messages and hidden technical roles tested in Compose.
+- Dictation diagnostics remain collapsed until deliberately expanded.
+- Physical Pixel owner Gateway default preview completed playback with Reply ready.
+- Source audit records remaining iPhone differences in iphone-parity.md; this is
+  not full-feature parity.

@@ -30,6 +30,30 @@ class PresentationTest {
         }
     }
 
+    @Test fun historyShowsEarlierLoadedMessagesNotJustLatestPair() {
+        ui.runOnIdle {
+            val m = model()
+            flag(m, "connected", true)
+            @Suppress("UNCHECKED_CAST")
+            val state = VoiceModel::class.java.getDeclaredField("messages" + "$" + "delegate")
+                .apply { isAccessible = true }.get(m) as MutableState<List<ChatLine>>
+            state.value = listOf(ChatLine("user", "Earlier question"), ChatLine("assistant", "Earlier answer"),
+                ChatLine("tool", "Hidden technical payload"), ChatLine("user", "Latest question"), ChatLine("assistant", "Latest answer"))
+            m.page = 1
+        }
+        ui.onNodeWithText("Earlier answer").performScrollTo().assertIsDisplayed()
+        ui.onNodeWithText("Hidden technical payload").assertDoesNotExist()
+        ui.onNodeWithText("Continue in Talk").performScrollTo().performClick()
+        ui.onNodeWithText("Latest answer").assertIsDisplayed()
+    }
+
+    @Test fun dictationDiagnosticsAreCollapsedUntilRequested() {
+        ui.runOnIdle { model().page = 2 }
+        ui.onNodeWithText("Check language model").assertDoesNotExist()
+        ui.onNodeWithText("Show on-device dictation details").performScrollTo().performClick()
+        ui.onNodeWithText("Check language model").performScrollTo().assertIsDisplayed()
+    }
+
     @Test fun recordingShowsStopNotSendAndCancelDiscardsDraft() {
         ui.runOnIdle {
             model().apply {
