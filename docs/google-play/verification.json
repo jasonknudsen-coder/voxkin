@@ -1,8 +1,8 @@
 {
   "candidate": "0.2.18 (20)",
   "package": "studio.voxkin.android",
-  "uploaded": false,
-  "playAppCreated": false,
+  "uploaded": true,
+  "playAppCreated": true,
   "publicPrivacyDeployed": true,
   "artifactChecks": {
     "bundletoolValidate": "passed (1.18.3)",
@@ -95,5 +95,10 @@
     "host synthetic triage/deletion",
     "aged-row purge",
     "edge health"
-  ]
+  ],
+  "internalReleaseStatus": "Available to internal testers",
+  "publicRelease": false,
+  "testerCount": 1,
+  "playAppId": "4972664749241251932",
+  "internalTrackId": "4701176384112235431"
 }

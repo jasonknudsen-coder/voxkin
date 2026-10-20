@@ -2,15 +2,19 @@
 
 ## Status
 
-Reporting service/privacy deployed and verified; **app not uploaded, not submitted, not publicly released**.
-Play Console organization access verified. `studio.voxkin.android` reports available.
-The create-app form was inspected and name/package entered, but **Create app was not
-clicked** and required policy/export declarations were not attested. No persistent
-Play app record, signing enrollment, tester list, track or release was created.
+**0.2.18 (20) is available to internal testers only. No public app release.**
+Play app `studio.voxkin.android`, app ID `4972664749241251932`, was created as a
+free app, matching the approved iPhone pricing. Signed AAB uploaded and Google
+processed it successfully. Internal release1 saved/published; exact track
+readback says **Available to internal testers**. Selected existing First Tester
+list after verifying it contains only Jason; no other people/groups selected.
+Internal opt-in: https://play.google.com/apps/internaltest/4701176384112235431
+Google temporarily labels the app `studio.voxkin.android (unreviewed)`.
 
-Google requires in-app offensive AI-output reporting. The Android reporting endpoint is deployed and qualified;
-see [reporting proposal](reporting-proposal.md). Do not certify policy compliance
-until this is resolved. Internal testing is not a blanket policy exemption.
+Reporting endpoint and Android privacy deployed/verified from4234e9e. No actual
+customer reports were read; synthetic report triage/deletion/expiry tested.
+Release warnings: absent optional deobfuscation file (no R8 enabled) and native
+symbol archive for bundled dependency. No blocking release error remained.
 
 ## Prepared assets
 
@@ -64,7 +68,7 @@ apksigner and16KB ZIP alignment. Bundle config declares PAGE_ALIGNMENT_16K.
 Release manifest has no debuggable=true, disallows cleartext, and disables backup.
 Lint:0errors,22warnings,2hints. No clean-lint or Play-review acceptance claim.
 
-## Remaining before submission
+## Remaining before public submission
 
 1. Reporting is live: HTTPS new/duplicate receipt, invalid-schema rejection, synthetic triage/deletion and aged-row purge passed October20. Owner confirmed no Voxkin backup set; live application backup scope excludes reporting storage.
 2. Android-aware privacy changes are live and byte-matched to approved source.
@@ -73,9 +77,7 @@ Lint:0errors,22warnings,2hints. No clean-lint or Play-review acceptance claim.
    conversation, speech and reconnect. Do not repurpose Apple review credentials.
 4. Finish Data Safety, target audience/content rating, app access and other Console
    declarations truthfully. Do not default to “Data not collected.”
-5. Create Play app, enroll app signing, upload the exact approved AAB to internal
-   testing, configure explicit testers, and verify track/readback. Internal tester
-   invitation delivery and public production release are separate actions.
+5. Internal testing is live for Jason only. Complete physical Play install/migration and app behavior checks before broader distribution; public production release remains separate.
 
 ## Review/delegation
 
@@ -93,3 +95,5 @@ process termination loses references, so cross-process deduplication is not clai
 No Pixel install or real report was submitted. Service/site and Play remain unchanged.
 
 Deployment receipt: `.tmp/reporting-deployment/live-receipt.json`. Runtime storage uses private OS permissions; no independently verified provider disk-encryption claim. Provider backup concern was resolved by owner confirmation, not a provider-console inspection. Cloudflare edge peers share conservative rate-limit buckets; client headers are not trusted. Staffed report-review cadence still needs owner assignment before broader rollout.
+
+No Pixel uninstall/install performed. Existing debug signing differs from Play signing: back up connection setup and explicitly plan re-enrollment before replacing the sideloaded app.
