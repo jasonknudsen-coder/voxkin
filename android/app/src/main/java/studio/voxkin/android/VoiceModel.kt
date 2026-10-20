@@ -106,7 +106,13 @@ class VoiceModel @JvmOverloads constructor(
     private var messageCursor: String? = null
     private var messageOffset = 0
     val selectedConversationId: String get() = if (!connected || !conversationReady) "" else if (restricted) sessionId else session
-    var page by mutableIntStateOf(0)
+    private var pageValue by mutableIntStateOf(0)
+    var page: Int
+        get() = pageValue
+        set(value) {
+            if (value != pageValue) endHandsFree()
+            pageValue = value
+        }
     private var transport: Transport? = null
     private var automaticConnectionSuppressed = false
     var conversationReady by mutableStateOf(true)
@@ -139,6 +145,48 @@ class VoiceModel @JvmOverloads constructor(
     private var localVoice = false
     private val session
         get() = "agent:$agent:voxkin:$sessionId"
+
+    var conversationMode by mutableStateOf(false)
+        private set
+    private var handsFreePermissionEpoch = 0
+    private val handsFree = HandsFreeSession(
+        scope = viewModelScope,
+        canListen = { canStartHandsFree },
+        listen = { startRecording() },
+        finish = { if (recording && partial.isNotBlank()) stopRecording() },
+        changed = { conversationMode = it },
+    )
+    val canStartHandsFree: Boolean get() = connected && page == 0 && conversationReady &&
+        !busy && !requestPending && !recording && !settling && !speaking && draft.isBlank() &&
+        speechConsent && (if (speechSource == "local") localVoice && voices.any {
+            it.id == voice && it.language == language.substringBefore('-')
+        } else !restricted && gatewaySpeechAvailable)
+
+    fun handsFreeStartToken(): String = "$generation|$handsFreePermissionEpoch|${conversationContext()}"
+
+    fun startHandsFree(token: String) {
+        if (token != handsFreeStartToken() || !canStartHandsFree) return
+        handsFree.start()
+    }
+
+    fun endHandsFree() {
+        handsFreePermissionEpoch++
+        if (!conversationMode) return
+        handsFree.stop() // Invalidate auto-send/resume before stopping capture or playback.
+        val words = partial
+        stopRecording(discard = true)
+        if (words.isNotBlank()) draft = listOf(draft, words).filter { it.isNotBlank() }.joinToString(" ")
+        stopAudio(endHandsFree = false)
+        status = if (requestPending) "Hands-free ended. Your agent may still be working; use Cancel request to cancel."
+            else if (draft.isNotBlank()) "Hands-free ended. Review your words, then tap Send. Nothing was sent."
+            else "Hands-free ended."
+    }
+
+    fun interruptHandsFreeReply() {
+        if (!conversationMode || !speaking || requestPending) return
+        stopAudio(endHandsFree = false)
+        handsFree.replyFinished()
+    }
 
     private fun conversationContext() = "${credentialKey()}|$agent|$sessionId"
 
@@ -179,6 +227,7 @@ class VoiceModel @JvmOverloads constructor(
 
     fun chooseLanguage(value: String) {
         if (recording || settling) return
+        endHandsFree()
         language = value
         store.put("language", value)
         val savedVoice = store.get("voice:${gateway.trim()}:$value")
@@ -218,6 +267,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun previewVoice() {
+        endHandsFree()
         if (!connected || busy || recording || settling || !speechConsent) return
         speak(if (language.startsWith("es")) "Hola. Esta es tu voz de Voxkin." else "Hello. This is your Voxkin voice.")
     }
@@ -380,6 +430,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun disconnect(allowResume: Boolean = false) {
+        endHandsFree()
         if (!allowResume) {
             automaticConnectionSuppressed = true
             draft = ""
@@ -413,6 +464,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun background() {
+        endHandsFree()
         disconnect(allowResume = true)
     }
 
@@ -579,7 +631,7 @@ class VoiceModel @JvmOverloads constructor(
         }
         val t = transport ?: return
         val requestText = replyLength.requestText(text, language)
-        stopAudio()
+        stopAudio(endHandsFree = false)
         val current = generation
         val run = UUID.randomUUID().toString()
         activeRun = run
@@ -620,6 +672,7 @@ class VoiceModel @JvmOverloads constructor(
                         activeRun = null
                         streamingText = ""
                         busy = false
+                        handsFree.stop()
                         status = "Turn stopped or timed out; nothing was replayed."
                     }
                 } catch (e: Exception) {
@@ -627,6 +680,7 @@ class VoiceModel @JvmOverloads constructor(
                         activeRun = null
                         streamingText = ""
                         busy = false
+                        handsFree.stop()
                         status =
                             if (e is GatewayFailure) e.message ?: "Request failed"
                             else "Reply failed; outcome may be unknown. Nothing was replayed."
@@ -674,14 +728,18 @@ class VoiceModel @JvmOverloads constructor(
                 if (text.isNotBlank()) {
                     messages = messages + ChatLine("assistant", text)
                     status = "Reply ready."
-                    if (speechConsent) speak(text)
-                } else status = "Reply contained no displayable text."
+                    if (speechConsent) speak(text) else handsFree.stop()
+                } else {
+                    handsFree.stop()
+                    status = "Reply contained no displayable text."
+                }
             }
             "error",
             "aborted" -> {
                 activeRun = null
                 streamingText = ""
                 busy = false
+                handsFree.stop()
                 status = "Turn ended without a reply. Nothing was replayed."
             }
         }
@@ -703,8 +761,8 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     private fun speak(text: String) {
-        val t = transport ?: return
-        stopAudio()
+        val t = transport ?: run { handsFree.stop(); return }
+        stopAudio(endHandsFree = false)
         val current = generation
         val audioEpoch = audioGeneration
         val useLocal = speechSource == "local"
@@ -712,6 +770,7 @@ class VoiceModel @JvmOverloads constructor(
         val selectedLanguage = language.substringBefore('-')
         speaking = true
         speechJob = launchTask {
+            var completed = false
             try {
                 if (useLocal)
                     require(localVoice && voices.any { it.id == selectedVoice && it.language == selectedLanguage })
@@ -770,9 +829,15 @@ class VoiceModel @JvmOverloads constructor(
                         playClip(bytes, current, audioEpoch)
                     },
                 )
-                if (current == generation && audioEpoch == audioGeneration) status = "Reply ready."
+                if (current == generation && audioEpoch == audioGeneration) {
+                    status = "Reply ready."
+                    completed = true
+                }
             } finally {
-                if (audioEpoch == audioGeneration) speaking = false
+                if (audioEpoch == audioGeneration) {
+                    speaking = false
+                    if (completed) handsFree.replyFinished() else handsFree.stop()
+                }
             }
         }
     }
@@ -839,7 +904,8 @@ class VoiceModel @JvmOverloads constructor(
         }
     }
 
-    fun stopAudio() {
+    fun stopAudio(endHandsFree: Boolean = true) {
+        if (endHandsFree) this.endHandsFree()
         audioGeneration++
         speaking = false
         speechJob?.cancel()
@@ -976,11 +1042,12 @@ class VoiceModel @JvmOverloads constructor(
         if (!connected || busy || recording || settling) return
         val context = getApplication<Application>()
         if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+            handsFree.stop()
             status =
                 "On-device dictation is unavailable. Install your device speech model or type; cloud fallback is disabled."
             return
         }
-        stopAudio()
+        stopAudio(endHandsFree = false)
         speechGeneration++
         val current = speechGeneration
         partial = ""
@@ -995,7 +1062,9 @@ class VoiceModel @JvmOverloads constructor(
                             override fun onReadyForSpeech(params: Bundle?) {
                                 if (current == speechGeneration) {
                                     microphoneReady = true
-                                    status = "Listening — speak now. Tap Stop when finished."
+                                    status = if (conversationMode)
+                                        "Hands-free listening. Pause to send automatically. Stop ends conversation."
+                                    else "Listening — speak now. Tap Stop when finished."
                                 }
                             }
 
@@ -1010,6 +1079,7 @@ class VoiceModel @JvmOverloads constructor(
 
                             override fun onEndOfSpeech() {
                                 if (current == speechGeneration) {
+                                    handsFree.finishing()
                                     recording = false
                                     microphoneReady = false
                                     settling = true
@@ -1055,7 +1125,10 @@ class VoiceModel @JvmOverloads constructor(
                                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                                         ?.firstOrNull()
                                     // Empty callbacks must not erase useful words from this capture.
-                                    if (!hypothesis.isNullOrBlank()) partial = hypothesis
+                                    if (!hypothesis.isNullOrBlank() && hypothesis != partial) {
+                                        partial = hypothesis
+                                        handsFree.wordsChanged()
+                                    }
                                 }
                             }
 
@@ -1094,6 +1167,7 @@ class VoiceModel @JvmOverloads constructor(
 
     fun stopRecording(discard: Boolean = false) {
         if (discard) {
+            handsFree.stop()
             speechGeneration++
             settleJob?.cancel()
             recognizer?.cancel()
@@ -1105,6 +1179,7 @@ class VoiceModel @JvmOverloads constructor(
             partial = ""
             level = 0f
         } else if (recording) {
+            handsFree.finishing()
             recording = false
             microphoneReady = false
             settling = true
@@ -1116,6 +1191,9 @@ class VoiceModel @JvmOverloads constructor(
 
     private fun finishRecognition(current: Int, text: String?): Boolean {
         if (current != speechGeneration) return false
+        val autoSend = conversationMode && !text.isNullOrBlank()
+        handsFree.finishing()
+        if (!autoSend) handsFree.stop()
         val recovered = text.isNullOrBlank() && partial.isNotBlank()
         val captured = text?.takeIf { it.isNotBlank() } ?: partial
         speechGeneration++
@@ -1133,6 +1211,13 @@ class VoiceModel @JvmOverloads constructor(
                 "Final transcription unavailable. Recovered words may be incomplete — review or edit, then tap Send. Nothing was sent."
             else "Review or edit your words, then tap Send."
         } else status = "No speech recognized. Tap Record to try again or type."
+        if (autoSend) {
+            if (connected && conversationReady && !busy && draft.length <= 4000 && transport != null) send()
+            else {
+                handsFree.stop()
+                status = "Hands-free paused. Review your draft (maximum 4,000 characters); nothing was sent."
+            }
+        }
         return captured.isNotBlank()
     }
 

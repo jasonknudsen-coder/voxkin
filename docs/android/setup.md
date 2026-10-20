@@ -86,12 +86,30 @@ requires confirmation and affects the selected gateway conversation. Forgetting
 local access is not server-side revocation; revoke a device at the gateway when
 needed.
 
+## Hands-free conversation (opt-in)
+
+On Talk, choose **Hands-free conversation**, read the explanation, then confirm
+**Start hands-free** and allow microphone access. A ready conversation, speech
+consent, available speech source and an empty draft are required. This mode is
+never remembered across app exits or reconnects.
+
+Successful final dictation sends automatically. A two-second unchanged-partial
+pause requests finalization, but Android's recognizer can finalize earlier.
+After the spoken reply finishes, listening resumes after a short gap. Tap the mic
+during speech to interrupt the reply and listen; tap Stop to end the mode.
+Leaving Talk or leaving the app also ends it. Stop does not cancel a request
+already sent: use **Cancel request** for that.
+
+Recognition errors, missing final words, timeouts, oversized drafts and failed
+replies end the loop. Recovered partial words remain for review; they never
+send automatically. Ordinary recording still uses **record → review → Send**.
+Hands-free real EN/ES conversational and Bluetooth/headset acceptance is pending.
+
 ## Preview gaps
 
 Camera QR scanning and Android Auto are not implemented in this first candidate.
 Paste/deep-link setup is supported. The Android preview is not yet a claim of full
-iOS feature parity (including owner invitation-management UI and hands-free
-conversation). Physical microphone/language, routing, lifecycle and live gateway
+iOS feature parity (including owner invitation-management UI). Physical microphone/language, routing, lifecycle and live gateway
 checks must be recorded before calling it qualified.
 
 See [iPhone presentation parity](iphone-parity.md) for the shared design and

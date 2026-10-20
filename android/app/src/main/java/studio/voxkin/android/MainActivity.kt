@@ -360,12 +360,33 @@ private fun TalkControls(
             if (granted) m.startRecording()
             else m.status = "Allow microphone access to dictate, or type your message."
         }
+    var showHandsFree by remember { mutableStateOf(false) }
+    var handsFreeToken by remember { mutableStateOf<String?>(null) }
+    val handsFreePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val token = handsFreeToken
+        handsFreeToken = null
+        if (granted && token != null) m.startHandsFree(token)
+        else if (!granted) m.status = "Allow microphone access to use hands-free conversation."
+    }
+    if (showHandsFree) AlertDialog(
+        onDismissRequest = { showHandsFree = false },
+        title = { Text("Start hands-free conversation?") },
+        text = { Text("Your words send automatically when you pause. After each spoken reply, the microphone opens again. Stop, leaving Talk, or leaving the app ends hands-free mode. Recognition errors keep recovered words for review instead of sending.") },
+        confirmButton = { TextButton(onClick = {
+            showHandsFree = false
+            handsFreeToken = m.handsFreeStartToken()
+            handsFreePermission.launch(Manifest.permission.RECORD_AUDIO)
+        }, enabled = m.canStartHandsFree) { Text("Start hands-free") } },
+        dismissButton = { TextButton(onClick = { showHandsFree = false }) { Text("Not now") } },
+    )
     val capture = m.recording || m.settling
     val hasDraft = m.draft.isNotBlank()
     val working = m.busy || m.speaking
-    val orbEnabled = !working && !m.settling && (!m.recording || m.microphoneReady)
+    val orbEnabled = m.conversationMode || (!working && !m.settling && (!m.recording || m.microphoneReady))
     val actionLabel =
         when {
+            m.conversationMode && m.speaking -> "Interrupt reply and listen"
+            m.conversationMode -> "End hands-free conversation"
             m.recording -> "Stop recording and review"
             m.settling -> "Finishing transcription"
             !m.connected -> "Connect to gateway"
@@ -528,7 +549,7 @@ private fun TalkControls(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(
-                    onClick = onTyping,
+                    onClick = { m.endHandsFree(); onTyping() },
                     modifier =
                         Modifier.size(48.dp).testTag("typeInstead").semantics {
                             contentDescription = "Type instead"
@@ -558,6 +579,8 @@ private fun TalkControls(
                             focus.clearFocus()
                             keyboard?.hide()
                             when {
+                                m.conversationMode && m.speaking -> m.interruptHandsFreeReply()
+                                m.conversationMode -> m.endHandsFree()
                                 m.recording -> m.stopRecording()
                                 !m.connected -> {
                                     if (m.gateway.isBlank()) m.page = 2 else m.connect()
@@ -573,7 +596,8 @@ private fun TalkControls(
                 ) {
                     VoxkinIcon(
                         when {
-                            m.recording || m.settling -> VoxkinSymbol.Stop
+                            m.conversationMode && m.speaking -> VoxkinSymbol.Mic
+                            m.conversationMode || m.recording || m.settling -> VoxkinSymbol.Stop
                             !m.connected -> VoxkinSymbol.Bolt
                             hasDraft -> VoxkinSymbol.Arrow
                             else -> VoxkinSymbol.Mic
@@ -586,12 +610,12 @@ private fun TalkControls(
                 IconButton(
                     onClick = {
                         focus.clearFocus()
-                        if (capture) m.clearDraft() else m.stopAudio()
+                        if (m.conversationMode) m.endHandsFree() else if (capture) m.clearDraft() else m.stopAudio()
                     },
                     enabled = m.connected,
                     modifier =
                         Modifier.size(48.dp).semantics {
-                            contentDescription = if (capture) "Cancel recording" else "Stop audio"
+                            contentDescription = if (m.conversationMode) "End hands-free" else if (capture) "Cancel recording" else "Stop audio"
                         },
                 ) {
                     VoxkinIcon(
@@ -600,9 +624,15 @@ private fun TalkControls(
                     )
                 }
             }
+            if (!m.conversationMode && !compact) TextButton(
+                onClick = { focus.clearFocus(); keyboard?.hide(); showHandsFree = true },
+                enabled = m.canStartHandsFree,
+                modifier = Modifier.align(Alignment.CenterHorizontally).testTag("startHandsFree"),
+            ) { Text("Hands-free conversation", fontSize = 12.sp) }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     when {
+                        m.conversationMode -> if (m.speaking) "Hands-free · tap mic to interrupt" else "Hands-free · Stop ends conversation"
                         m.settling -> "Finishing…"
                         m.recording ->
                             if (m.microphoneReady) "Listening · tap Stop to review"

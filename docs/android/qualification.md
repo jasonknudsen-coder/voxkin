@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.5 (7), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `27aff27eaaf4b7b7993f16ca913f5f94d4a29f40745c810790724795fabf6ed6`.
+- Version0.2.6 (8), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `47c439339c6a8000dcf9e0ae35d32f49019e7ba2a25cebe68c448b61b5728a2a`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -14,10 +14,10 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Automated evidence
 
-- **20/20 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
+- **25/25 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **38/38 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **47/47 distinct physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
@@ -26,7 +26,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 - Android lint: **0 errors,19 warnings** (dependency currency, style/manifest and
   launcher-icon shape). No clean-lint claim.
 - Independent read-only review and follow-up confirmed fixes for the identified
-  protocol, cancellation and context-switching bugs. See [review](review.md).
+  protocol, cancellation and context-switching bugs in earlier batches. The0.2.6
+  reviewer could not run; no independent-review pass for hands-free. See [review](review.md).
 
 ## Live physical-device evidence
 
@@ -174,3 +175,28 @@ See [parity scope](iphone-parity.md) for features still outside this preview.
   very large transcript performance remain human acceptance work.
 - Live owner saved pairing/conversation restored; History loaded successfully with
   updated timestamps visible. Returned to Talk for handoff. Raw device data stays local.
+
+
+## Hands-free follow-up (0.2.6)
+
+- 25 JVM +47 distinct physical Pixel tests passed (72 total). Initial full device
+  suite:43/44 passed; only failure was the screenshot helper selecting two roots
+  when an AlertDialog was open. Corrected the helper, added two safety cases, and
+  reran HandsFreeTest + PresentationTest:15/15 passed. Final additional real audio
+  handoff test:1/1 passed. Production APK unchanged throughout these test-only fixes.
+- Scheduler tests cover explicit readiness, debounce, finish cancellation, stop/
+  restart invalidation and readiness recheck before resume. Model tests cover
+  successful-final-only automatic Send, late callback rejection, error recovery,
+  oversized drafts, background/stale permission, navigation, consent loss, request
+  failure and Stop versus explicit request cancellation. Synthetic gateways only.
+- Physical MediaPlayer played a short silent WAV, completed/released playback,
+  reopened the actual on-device recognizer, then explicit Stop ended the mode.
+  No real gateway request was sent. This is pipeline/lifecycle evidence, not
+  acoustic English/Spanish conversation, voice quality or Bluetooth qualification.
+- Opt-in dialog screenshot inspected: automatic sending/listening and stopping
+  behavior are explicit and legible. Normal recording/review/Send UI tests pass.
+- Lint remains0errors/19warnings. Parent source review completed; independent review
+  failed to start because of service authorization. No independent pass claimed.
+- Test package removed; debug APK remains installed for owner acceptance. Saved
+  owner connection/conversation restored without speech or Send; hands-free entry
+  is enabled on Talk and the mode remains off until explicit opt-in.

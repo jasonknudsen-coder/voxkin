@@ -27,7 +27,7 @@ This is **core phone presentation parity**, not a claim that every iOS feature
 has shipped on Android. Android uses its own keyboard, permission dialogs,
 accessibility services and on-device recognition implementation.
 
-Still outside this preview: hands-free conversation, owner invitation/approval
+Still outside this preview: owner invitation/approval
 management, camera QR scanner, automatic owner-conversation titles,
 response timing panel, conversational receipt feedback and Android
 Auto. The iOS CarPlay integration does not automatically confer Android Auto
@@ -81,7 +81,7 @@ Reply display is plain text, not formatted Markdown. Speech now applies inline M
 short-first-chunk and one-next-prefetch pipeline is now implemented. Android currently
 speaks bounded chunks for longer replies while iOS limits speech to4,000characters.
 
-**Capture/lifecycle:** no hands-free conversation or haptic cues. Android now retains the last nonempty
+**Capture/lifecycle:** explicit hands-free opt-in is implemented (0.2.6); haptic cues remain missing. Android now retains the last nonempty
 partial hypothesis for review when final recognition fails or times out; Cancel
 still discards it. Foreground reconnect and saved conversation restoration are now implemented.
 Android language is explicitly English/Spanish independent of speech source;
@@ -196,3 +196,25 @@ history/pagination, hands-free, QR setup, and owner phone administration.
 Remaining: automatic stable owner naming and preview generation, granular history
 capabilities, persisted commentary/progress feedback, hands-free, QR, owner access
 management and the other explicit platform/experience differences above.
+
+
+## Hands-free conversation (0.2.6, 2026-10-20)
+
+- Explicit per-session opt-in explains automatic Send on pauses and microphone
+  restart after speech. Requires ready authenticated conversation, empty draft,
+  speech consent and available voice/source. No persistent automatic opt-in.
+- A two-second unchanged nonempty hypothesis requests finalization; Android may
+  deliver its own final earlier. Only a successful nonempty final can auto-send.
+  Errors, empty final and settle timeout recover partial words for manual review
+  and end hands-free. Over-limit drafts remain unsent. Normal capture never auto-sends.
+- Successful speech schedules listening after350ms and rechecks readiness.
+  Tap the mic during speech to interrupt and listen. Stop, leaving Talk, background,
+  context changes, consent loss and failures end the loop. Pending timers and late
+  recognizer/permission callbacks cannot restart the ended session.
+- Stop preserves partial words for review and does not abort an already-sent turn;
+  Cancel request remains separate. Foreground reconnect never resumes hands-free.
+- Delegation checkpoint: independent read-only reviewer was requested but could not
+  run due to service authorization failure. Parent review and tests only; no
+  independent-review pass for this batch. Cockpit not allowlisted, unchanged.
+- Actual acoustic EN/ES conversation loops, Bluetooth/headset routing, interruption
+  timing and accessibility still require owner acceptance. Not full iPhone parity.

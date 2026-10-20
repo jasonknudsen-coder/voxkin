@@ -16,6 +16,24 @@ class PresentationTest {
 
     private fun model(): VoiceModel = ViewModelProvider(ui.activity)[VoiceModel::class.java]
 
+    @Test fun handsFreeRequiresExplicitExplanationAndNormalMicStillReviews() {
+        ui.runOnIdle {
+            val m = model()
+            flag(m, "connected", true)
+            flag(m, "gatewaySpeechAvailable", true)
+            m.restricted = false
+            m.speechConsent = true
+            m.chooseSpeechSource("gateway")
+        }
+        ui.onNodeWithTag("startHandsFree").assertIsEnabled().performClick()
+        ui.onNodeWithText("Start hands-free conversation?").assertIsDisplayed()
+        ui.onNodeWithText("Your words send automatically", substring = true).assertIsDisplayed()
+        capture("handsfree-optin", dialog = true)
+        ui.onNodeWithText("Not now").performClick()
+        ui.runOnIdle { assertFalse(model().conversationMode); assertFalse(model().recording) }
+        ui.onNodeWithContentDescription("Talk to agent").assertIsDisplayed()
+    }
+
     @Test fun historyShowsSelectedSummaryAndPagingControls() {
         ui.runOnIdle {
             val m = model()
@@ -79,8 +97,8 @@ class PresentationTest {
         state.value = value
     }
 
-    private fun capture(name: String) {
-        val bitmap = ui.onRoot().captureToImage().asAndroidBitmap()
+    private fun capture(name: String, dialog: Boolean = false) {
+        val bitmap = (if (dialog) ui.onNode(isDialog()) else ui.onRoot()).captureToImage().asAndroidBitmap()
         File(ui.activity.cacheDir, "parity-$name.png").outputStream().use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
