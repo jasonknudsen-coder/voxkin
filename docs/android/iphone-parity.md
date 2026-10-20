@@ -28,7 +28,7 @@ has shipped on Android. Android uses its own keyboard, permission dialogs,
 accessibility services and on-device recognition implementation.
 
 Still outside this preview: owner invitation/approval
-management, camera QR scanner, automatic owner-conversation titles,
+management, automatic owner-conversation titles,
 response timing panel, conversational receipt feedback and Android
 Auto. The iOS CarPlay integration does not automatically confer Android Auto
 support. Returning to the foreground reconnects previously approved saved access and
@@ -89,7 +89,7 @@ iOS gateway-default dictation follows device locale. Android allows text-only
 Send without speech consent; iOS requires its speech-policy acceptance before Send.
 These differences must not be hidden behind identical-looking controls.
 
-**Setup/management:** no camera QR scanner or owner invite/approve/revoke UI.
+**Setup/management:** camera QR setup is implemented (0.2.7); owner invite/approve/revoke UI remains missing.
 Pairing-request guidance and persistent restricted-phone ID need iPhone alignment.
 Forget removes credentials but currently retains address/voice preferences, unlike
 iOS; do not describe it as erasing every setting. Android Auto remains separate.
@@ -218,3 +218,29 @@ management and the other explicit platform/experience differences above.
   independent-review pass for this batch. Cockpit not allowlisted, unchanged.
 - Actual acoustic EN/ES conversation loops, Bluetooth/headset routing, interruption
   timing and accessibility still require owner acceptance. Not full iPhone parity.
+
+
+## QR setup (0.2.7, 2026-10-20)
+
+- Settings offers a local QR scanner while disconnected, plus existing paste/deep-link
+  setup. Camera hardware is optional and camera permission is requested only for scanning.
+  QR-only decoder, no beep/image saving, non-exported scanner with secure window.
+- Valid owner/restricted QR values open gateway/access review; credential stays hidden.
+  Use scanned setup only stages fields. Connect and Enroll are separate explicit actions.
+  Cancel, invalid scan and Discard preserve prior fields; arbitrary URLs are not opened.
+- Setup suppresses automatic saved-gateway reconnect. A credential-free saved-state
+  flag restores that suppression across Activity/process recreation; decoded review
+  credentials are not saved by app code. Background clears the review. Restored setup
+  returns to Settings with an explicit paused explanation. New deep links invalidate
+  a pending scan result.
+- One independent read-only reviewer found suppression was initially lost after
+  scan-result process recreation. Fixed, regression-tested and re-reviewed with no
+  remaining blockers; also accepted restored-Settings explanation polish. Lead owns
+  all edits/build/device work. Cockpit remains unavailable/not allowlisted.
+- Uses [ZXing Android Embedded](https://github.com/journeyapps/zxing-android-embedded)
+  4.3.0 and its bundled ZXing core decoder; no hosted scanning service. The upstream
+  [integration guide](https://github.com/journeyapps/zxing-android-embedded#usage-with-scancontract)
+  documents the explicit ScanContract and disabled image-saving options.
+- Real optical scanning of a displayed/printed invitation still needs owner acceptance;
+  generated-image decoder tests and a camera permission/cancel check are distinct evidence.
+  No real enrollment, device approval or gateway configuration change is part of this batch.

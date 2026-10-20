@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.6 (8), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `47c439339c6a8000dcf9e0ae35d32f49019e7ba2a25cebe68c448b61b5728a2a`.
+- Version0.2.7 (9), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `04ea22826a9b9654b4fd16fc62642451f190eed46a281c4037252481ef59549f`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -14,16 +14,16 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Automated evidence
 
-- **25/25 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
+- **27/27 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **47/47 distinct physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **53/53 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
   clear-capture cancellation; preview consent; recording hides Send; explicit reviewed-draft
   send state and keyboard editing; over-limit draft preservation.
-- Android lint: **0 errors,19 warnings** (dependency currency, style/manifest and
+- Android lint: **0 errors,20 warnings** (dependency currency, style/manifest and
   launcher-icon shape). No clean-lint claim.
 - Independent read-only review and follow-up confirmed fixes for the identified
   protocol, cancellation and context-switching bugs in earlier batches. The0.2.6
@@ -200,3 +200,34 @@ See [parity scope](iphone-parity.md) for features still outside this preview.
 - Test package removed; debug APK remains installed for owner acceptance. Saved
   owner connection/conversation restored without speech or Send; hands-free entry
   is enabled on Talk and the mode remains off until explicit opt-in.
+
+
+## QR setup follow-up (0.2.7)
+
+- Full suite27 JVM +53 physical Pixel tests passed (80 total), lint0errors/20warnings.
+  QR tests use the actual bundled decoder on generated owner and restricted QR
+  images; malformed codes, web links and insecure endpoints are rejected. Device
+  tests cover review-versus-stage, explicit use, cancel/invalid/discard field
+  preservation, background clearing, replacing review with a deep link, restored
+  suppression of an existing approved connection, internal-only scanner contract,
+  QR-only formats and disabled barcode-image saving.
+- Synthetic review-dialog screenshot inspected: gateway/access explanation and
+  distinct Discard/Use actions are legible; no credential is displayed. Use stages
+  fields without connecting/enrolling. Raw synthetic test material stays local.
+- Live Pixel: saved owner connection restored, explicitly disconnected for scan QA.
+  Denied camera permission returned through the camera-denied dialog to setup.
+  Retried with one-time permission: SetupScannerActivity resumed and camera-service
+  connection was observed; Back returned to setup with Connect (not Disconnect).
+  No invitation was redeemed and no real gateway message sent. Camera permission
+  returned to ungranted after QA; test package removed.
+- Independent read-only review found process recreation could reconnect saved
+  access after a scan result. Added separate credential-free setupFlowActive
+  restoration before foreground, plus regression test; follow-up found no blockers.
+  Also accepted restored-Settings explanation polish. One defect/two accepted
+  recommendations; lead owns all implementation/device work. Cockpit not allowlisted.
+- Bundled QR component attribution and Apache-2.0 license under assets/licenses.
+  Final rebuild added only these license assets after the full test suite; final
+  debug APK installed; saved owner connection/conversation restored on Talk without
+  replaying speech or sending. No iOS/gateway or production/store change.
+- Physical optical QR decoding of a displayed/printed invitation remains owner
+  acceptance. Generated-image decode and camera-opening tests do not claim that.

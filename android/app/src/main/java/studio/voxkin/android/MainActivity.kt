@@ -3,6 +3,7 @@ package studio.voxkin.android
 import android.Manifest
 import android.content.Intent
 import android.os.Bundle
+import com.journeyapps.barcodescanner.ScanContract
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -52,8 +53,36 @@ class MainActivity : ComponentActivity() {
         modelFactory ?: androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(application)
     }
 
+    private var setupScanPending = false
+    private val setupScanner = registerForActivityResult(ScanContract()) { result ->
+        if (setupScanPending) {
+            setupScanPending = false
+            model.reviewSetupScan(result.contents)
+        }
+    }
+
+    private fun scanSetup() {
+        if (!model.prepareSetupScan()) return
+        setupScanPending = true
+        try {
+            setupScanner.launch(SetupScannerActivity.options())
+        } catch (_: Exception) {
+            setupScanPending = false
+            model.reviewSetupScan(null)
+            model.status = "Camera scanner unavailable. Paste a setup link instead."
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("setupScanPending", setupScanPending)
+        outState.putBoolean("setupFlowActive", model.setupFlowActive)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setupScanPending = savedInstanceState?.getBoolean("setupScanPending") ?: false
+        if (setupScanPending || savedInstanceState?.getBoolean("setupFlowActive") == true) model.restoreSetupFlow()
         if (savedInstanceState == null) intent.dataString?.let { model.stage(it) }
         setContent {
             MaterialTheme(
@@ -68,7 +97,7 @@ class MainActivity : ComponentActivity() {
                         onBackground = Color.White,
                     )
             ) {
-                Voxkin(model)
+                Voxkin(model, onScanSetup = { scanSetup() })
             }
         }
     }
@@ -76,12 +105,12 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent.dataString?.let { model.stage(it) }
+        intent.dataString?.let { setupScanPending = false; model.stage(it) }
     }
 
     override fun onStart() {
         super.onStart()
-        model.foreground()
+        if (!setupScanPending) model.foreground()
     }
 
     override fun onStop() {
@@ -91,7 +120,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun Voxkin(m: VoiceModel) {
+private fun Voxkin(m: VoiceModel, onScanSetup: () -> Unit) {
     val focus = LocalFocusManager.current
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     Scaffold(
@@ -198,7 +227,7 @@ private fun Voxkin(m: VoiceModel) {
             when (m.page) {
                 0 -> TalkPage(m)
                 1 -> HistoryPage(m)
-                else -> SettingsPage(m)
+                else -> SettingsPage(m, onScanSetup)
             }
         }
     }
@@ -945,7 +974,20 @@ private fun HistoryPage(m: VoiceModel) {
 }
 
 @Composable
-private fun SettingsPage(m: VoiceModel) {
+private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
+    val scanned = m.scannedSetup
+    if (scanned != null) AlertDialog(
+        onDismissRequest = { m.discardSetupScan() },
+        title = { Text(if (scanned.restricted) "Review phone invitation" else "Review owner setup") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Gateway: ${Protocol.endpoint(scanned.gateway, scanned.restricted)}")
+            Text(if (scanned.restricted) "Restricted phone access. Enrollment still requires owner approval."
+                else "Owner access grants broader gateway permissions. Only use your own trusted gateway.")
+            Text("The credential is hidden. Use setup only fills the fields; Connect or Enroll remains a separate action.")
+        } },
+        confirmButton = { TextButton(onClick = { m.useScannedSetup() }) { Text("Use scanned setup") } },
+        dismissButton = { TextButton(onClick = { m.discardSetupScan() }) { Text("Discard") } },
+    )
     var setup by remember { mutableStateOf("") }
     var confirmForget by remember { mutableStateOf(false) }
     var troubleshootingExpanded by remember { mutableStateOf(false) }
@@ -970,6 +1012,9 @@ private fun SettingsPage(m: VoiceModel) {
                 "Set up this phone",
                 "Only import a gateway you trust. Setup links contain a credential; keep them private. Staging only fills the fields. Review them, then Connect or Enroll.",
             ) {
+                GroupAction("Scan setup QR", enabled = !m.busy, onClick = onScanSetup)
+                GroupText("Scan a Voxkin owner setup or phone invitation. Camera decoding stays on this phone; you review before using it.")
+                GroupDivider()
                 SetupField(
                     setup,
                     { setup = it },

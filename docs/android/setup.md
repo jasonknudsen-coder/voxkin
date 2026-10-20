@@ -86,6 +86,24 @@ requires confirmation and affects the selected gateway conversation. Forgetting
 local access is not server-side revocation; revoke a device at the gateway when
 needed.
 
+## QR setup
+
+In Settings, disconnect first if already connected, then choose **Scan setup QR**.
+Allow camera access when Android asks, or cancel and use paste instead. The camera
+scanner decodes QR codes on the phone; barcode-image saving is disabled. No separate
+scanner app, cloud decoding, clipboard copy or credential logging is used.
+
+A valid owner setup or restricted invitation opens a review showing only the gateway
+and access type. **Discard** leaves existing fields unchanged. **Use scanned setup**
+fills the fields; you must still explicitly **Connect** or **Enroll this phone**.
+Ordinary web links, insecure endpoints and malformed invitations are rejected.
+Scanned text is never opened as a browser URL.
+
+Camera cancellation or invalid scans keep the previous fields. Setup suppresses
+saved-gateway automatic reconnect, including Activity state restoration; returning
+from the scanner does not enroll or connect. An interrupted review is cleared rather
+than persisting its credential. Paste/deep-link setup remains available without a camera.
+
 ## Hands-free conversation (opt-in)
 
 On Talk, choose **Hands-free conversation**, read the explanation, then confirm
@@ -107,8 +125,7 @@ Hands-free real EN/ES conversational and Bluetooth/headset acceptance is pending
 
 ## Preview gaps
 
-Camera QR scanning and Android Auto are not implemented in this first candidate.
-Paste/deep-link setup is supported. The Android preview is not yet a claim of full
+Camera QR scanning and paste/deep-link setup are supported. Android Auto is not implemented. The Android preview is not yet a claim of full
 iOS feature parity (including owner invitation-management UI). Physical microphone/language, routing, lifecycle and live gateway
 checks must be recorded before calling it qualified.
 

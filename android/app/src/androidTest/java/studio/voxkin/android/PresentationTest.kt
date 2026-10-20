@@ -16,6 +16,25 @@ class PresentationTest {
 
     private fun model(): VoiceModel = ViewModelProvider(ui.activity)[VoiceModel::class.java]
 
+    @Test fun scannedSetupReviewHidesCredentialAndRequiresSeparateUse() {
+        ui.runOnIdle {
+            model().reviewSetupScan("voxkin://setup#gateway=wss%3A%2F%2Fqr.example.com&token=synthetic-hidden-credential")
+        }
+        ui.onNodeWithText("Review owner setup").assertIsDisplayed()
+        ui.onNodeWithText("Gateway: wss://qr.example.com").assertIsDisplayed()
+        ui.onNodeWithText("synthetic-hidden-credential", substring = true).assertDoesNotExist()
+        capture("qr-review", dialog = true)
+        ui.onNodeWithText("Use scanned setup").performClick()
+        ui.runOnIdle {
+            assertEquals("wss://qr.example.com", model().gateway)
+            assertEquals("synthetic-hidden-credential", model().token)
+            assertFalse(model().connected)
+            assertFalse(model().busy)
+            assertTrue(model().setupFlowActive)
+        }
+        ui.onNodeWithText("Setup staged only.", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
     @Test fun handsFreeRequiresExplicitExplanationAndNormalMicStillReviews() {
         ui.runOnIdle {
             val m = model()

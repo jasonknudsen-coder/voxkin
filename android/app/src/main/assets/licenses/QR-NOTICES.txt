@@ -1,0 +1,15 @@
+QR scanner components included in this Android build:
+
+ZXing Android Embedded 4.3.0
+ZXing authors and Journey Mobile
+https://github.com/journeyapps/zxing-android-embedded
+License: Apache License, Version 2.0 (Apache-2.0.txt)
+
+ZXing Core 3.4.1
+ZXing authors
+https://github.com/zxing/zxing
+License: Apache License, Version 2.0 (Apache-2.0.txt)
+
+Unmodified upstream libraries; Voxkin supplies its own scanner configuration and
+explicit setup-review flow. This notice covers the QR components, not a complete
+inventory of all Android dependencies.

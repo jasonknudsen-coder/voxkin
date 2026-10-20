@@ -285,22 +285,81 @@ class VoiceModel @JvmOverloads constructor(
         }
     }
 
+    var scannedSetup by mutableStateOf<Protocol.Setup?>(null)
+        private set
+
+    var setupFlowActive = false
+        private set
+
+    fun restoreSetupFlow() {
+        if (!setupFlowActive) {
+            page = 2
+            status = "Setup paused. Scan or paste a setup link, or explicitly Connect using the displayed fields."
+        }
+        setupFlowActive = true
+        automaticConnectionSuppressed = true
+    }
+
+    fun prepareSetupScan(): Boolean {
+        if (connected || busy || recording || settling || speaking) return false
+        restoreSetupFlow()
+        scannedSetup = null
+        return true
+    }
+
+    fun reviewSetupScan(text: String?) {
+        // Even cancellation must not reconnect saved access underneath the setup flow.
+        restoreSetupFlow()
+        scannedSetup = null
+        page = 2
+        if (text == null) {
+            status = "Scan cancelled. You can paste a setup link instead."
+            return
+        }
+        if (connected || busy) {
+            status = "Setup changed while scanning. Disconnect and scan again."
+            return
+        }
+        scannedSetup = runCatching { Protocol.setup(text) }.getOrNull()
+        status = if (scannedSetup == null) "This QR is not a valid Voxkin setup or invitation. Nothing changed."
+            else "QR scanned. Review the gateway and access type before using it."
+    }
+
+    fun discardSetupScan() {
+        scannedSetup = null
+        status = "Scanned setup discarded. Nothing changed."
+    }
+
+    fun useScannedSetup() {
+        val setup = scannedSetup ?: return
+        scannedSetup = null
+        if (connected || busy) {
+            status = "Setup changed. Disconnect and scan again."
+            return
+        }
+        applySetup(setup)
+    }
+
+    private fun applySetup(setup: Protocol.Setup) {
+        restoreSetupFlow()
+        disconnect()
+        gateway = Protocol.endpoint(setup.gateway, setup.restricted).toString()
+        restricted = setup.restricted
+        token = if (setup.restricted) "" else setup.secret
+        invitation = if (setup.restricted) setup.secret else ""
+        page = 2
+        status = "Setup staged only. Check the gateway, then explicitly ${if(restricted)"Enroll" else "Connect"}."
+    }
+
     fun stage(text: String) {
+        scannedSetup = null
         runCatching { Protocol.setup(text) }
-            .onSuccess {
-                disconnect()
-                gateway = Protocol.endpoint(it.gateway, it.restricted).toString()
-                restricted = it.restricted
-                token = if (it.restricted) "" else it.secret
-                invitation = if (it.restricted) it.secret else ""
-                page = 2
-                status =
-                    "Setup staged only. Check the gateway, then explicitly ${if(restricted)"Enroll" else "Connect"}."
-            }
+            .onSuccess { applySetup(it) }
             .onFailure { status = "Invalid Voxkin setup link." }
     }
 
     fun connect() {
+        setupFlowActive = false
         disconnect(allowResume = true)
         automaticConnectionSuppressed = false
         val current = generation
@@ -430,6 +489,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun disconnect(allowResume: Boolean = false) {
+        scannedSetup = null
         endHandsFree()
         if (!allowResume) {
             automaticConnectionSuppressed = true
@@ -473,7 +533,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     internal fun canReconnect(): Boolean {
-        if (!automaticConnection || automaticConnectionSuppressed || connected || busy ||
+        if (!automaticConnection || automaticConnectionSuppressed || scannedSetup != null || connected || busy ||
             token.isNotBlank() || invitation.isNotBlank()) return false
         val endpoint = runCatching { Protocol.endpoint(gateway, restricted).toString() }.getOrNull() ?: return false
         return endpoint == gateway && store.get("resume:${credentialKey()}") == "true" &&
