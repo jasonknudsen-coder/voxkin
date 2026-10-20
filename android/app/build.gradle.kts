@@ -2,7 +2,16 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
  namespace = "studio.voxkin.android"
  compileSdk = 36
- defaultConfig { applicationId = "studio.voxkin.android"; minSdk = 31; targetSdk = 36; versionCode = 18; versionName = "0.2.16"; testInstrumentationRunner = "studio.voxkin.android.IsolatedTestRunner" }
+ defaultConfig { applicationId = "studio.voxkin.android"; minSdk = 31; targetSdk = 36; versionCode = 20; versionName = "0.2.18"; testInstrumentationRunner = "studio.voxkin.android.IsolatedTestRunner" }
+ signingConfigs {
+  create("upload") {
+   providers.environmentVariable("VOXKIN_UPLOAD_STORE_FILE").orNull?.let { storeFile = file(it) }
+   storePassword = providers.environmentVariable("VOXKIN_UPLOAD_STORE_PASSWORD").orNull
+   keyAlias = providers.environmentVariable("VOXKIN_UPLOAD_KEY_ALIAS").orElse("voxkin-upload").get()
+   keyPassword = providers.environmentVariable("VOXKIN_UPLOAD_KEY_PASSWORD").orNull
+  }
+ }
+ buildTypes { getByName("release") { signingConfig = signingConfigs.getByName("upload") } }
  buildFeatures { compose = true }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  kotlinOptions { jvmTarget = "17" }
@@ -32,3 +41,12 @@ dependencies {
  testImplementation("junit:junit:4.13.2")
  testImplementation("org.json:json:20250517")
 }
+
+val requireUploadSigning by tasks.registering {
+ doLast {
+  listOf("VOXKIN_UPLOAD_STORE_FILE", "VOXKIN_UPLOAD_STORE_PASSWORD", "VOXKIN_UPLOAD_KEY_PASSWORD").forEach {
+   check(!providers.environmentVariable(it).orNull.isNullOrBlank()) { "Release signing requires $it (see docs/google-play/README.md)." }
+  }
+ }
+}
+tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(requireUploadSigning) }

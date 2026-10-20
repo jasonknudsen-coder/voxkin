@@ -148,6 +148,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun Voxkin(m: VoiceModel, onScanSetup: () -> Unit) {
+    ReportResponseDialog()
     val activity = LocalActivity.current
     val invitationVisible = m.shareInvitation.isNotEmpty()
     DisposableEffect(activity, invitationVisible) {
@@ -406,6 +407,7 @@ private fun MessageCard(line: ChatLine, agent: Boolean, formatted: Boolean) {
             if (formatted) InlineMarkdown.render(line.text).annotated() else androidx.compose.ui.text.AnnotatedString(line.text)
         }
         SelectionContainer { Text(display, fontSize = 16.sp, lineHeight = 24.sp) }
+        if (agent && formatted) ReportResponseAction(line.text)
     }
 }
 

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+<defs><linearGradient id="canvas" x2="1" y2="1"><stop stop-color="#0B1830"/><stop offset="1" stop-color="#040914"/></linearGradient></defs>
+<rect width="1024" height="500" fill="url(#canvas)"/>
+<svg x="64" y="147" width="345" height="184" viewBox="100 270 800 425"><defs>
+    <linearGradient id="rear" gradientUnits="userSpaceOnUse" x1="700" y1="280" x2="500" y2="680"><stop stop-color="#EE67F7"/><stop offset=".5" stop-color="#7939FF"/><stop offset="1" stop-color="#4932F5"/></linearGradient>
+    <linearGradient id="front" gradientUnits="userSpaceOnUse" x1="330" y1="285" x2="530" y2="685"><stop stop-color="#12D9EC"/><stop offset=".5" stop-color="#087EFF"/><stop offset="1" stop-color="#04CBEA"/></linearGradient>
+    <linearGradient id="leftShort" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#12D9EC"/><stop offset="1" stop-color="#087EFF"/></linearGradient>
+    <linearGradient id="right" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#EE67F7"/><stop offset="1" stop-color="#7939FF"/></linearGradient>
+  </defs>
+  <path fill="url(#rear)" d="M330 285 C290 285 264 324 285 361 L435 634 C471 699 549 699 588 633 L737 361 C760 319 735 281 696 281 C674 281 657 291 645 313 L513 547 L382 313 C370 294 352 285 330 285Z"/>
+  <path fill="url(#front)" d="M330 285 C290 285 264 324 285 361 L435 634 C471 699 549 699 588 633 L613 588 C576 633 541 597 513 547 L382 313 C370 294 352 285 330 285Z"/>
+  <g fill="url(#leftShort)"><rect x="110" y="448" width="42" height="104" rx="21"/><rect x="175" y="410" width="42" height="180" rx="21"/></g>
+  <g fill="url(#right)"><rect x="783" y="410" width="42" height="180" rx="21"/><rect x="848" y="448" width="42" height="104" rx="21"/></g>
+</svg>
+<text x="465" y="207" font-family="-apple-system,BlinkMacSystemFont,Arial,sans-serif" font-size="70" font-weight="750" fill="#ffffff">Vox<tspan fill="#d447ed">kin</tspan></text>
+<text x="468" y="267" font-family="-apple-system,BlinkMacSystemFont,Arial,sans-serif" font-size="30" font-weight="600" fill="#ffffff">Talk to your agent.</text>
+<text x="468" y="318" font-family="-apple-system,BlinkMacSystemFont,Arial,sans-serif" font-size="22" fill="#a8b4c6">Your OpenClaw gateway. Your AI.</text>
+</svg>

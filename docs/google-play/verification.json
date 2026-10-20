@@ -1,0 +1,89 @@
+{
+  "candidate": "0.2.18 (20)",
+  "package": "studio.voxkin.android",
+  "uploaded": false,
+  "playAppCreated": false,
+  "publicPrivacyDeployed": false,
+  "artifactChecks": {
+    "bundletoolValidate": "passed (1.18.3)",
+    "aabJarSignature": "signed by release Gradle task; bundletool validate passed",
+    "releaseApkSignature": "verified apksigner v2",
+    "releaseApkZipAlignment16K": "passed",
+    "bundleConfigAlignment": "PAGE_ALIGNMENT_16K",
+    "releaseLint": {
+      "Warning": 22,
+      "Hint": 2
+    },
+    "jvmTests": 73,
+    "jvmFailures": 0,
+    "storeCaptureInstrumentation": "1 passed",
+    "reportDialogInstrumentation": "3 passed including in-flight Activity recreation",
+    "receiverTests": "5 passed"
+  },
+  "nativeLibraries": [
+    {
+      "path": "base/lib/arm64-v8a/libandroidx.graphics.path.so",
+      "loadAlignments": [
+        16384,
+        16384,
+        16384
+      ]
+    },
+    {
+      "path": "base/lib/armeabi-v7a/libandroidx.graphics.path.so",
+      "loadAlignments": [
+        16384,
+        16384,
+        16384
+      ]
+    },
+    {
+      "path": "base/lib/x86/libandroidx.graphics.path.so",
+      "loadAlignments": [
+        16384,
+        16384,
+        16384
+      ]
+    },
+    {
+      "path": "base/lib/x86_64/libandroidx.graphics.path.so",
+      "loadAlignments": [
+        16384,
+        16384,
+        16384
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "android/app/build/outputs/bundle/release/app-release.aab",
+      "bytes": 11596107,
+      "sha256": "7d1fa89d30a36f0bef9cd1daef18eee23748c45a518c32a1b3f693be24400946"
+    },
+    {
+      "path": "android/app/build/outputs/apk/release/app-release.apk",
+      "bytes": 28997244,
+      "sha256": "529f19e7fc212606aac55a6998b1f76d43d4c03f5694b5b335d4883be67aadcc"
+    },
+    {
+      "path": "docs/google-play/feature-graphic.png",
+      "bytes": 368528,
+      "sha256": "cd5b8d3ba3135e70c98e88047f14b788d94eb3985cf2ede1ace5088918645626"
+    },
+    {
+      "path": "docs/google-play/screenshots/01-talk.png",
+      "bytes": 198600,
+      "sha256": "171fb69336eba37829b55daca3b9dfef16077a06c6f20d13e9dea57930eff375"
+    },
+    {
+      "path": "docs/google-play/screenshots/02-conversation.png",
+      "bytes": 238356,
+      "sha256": "8fa07ced6f690150d77e4bfe27a4bd5e818b56dd7b45faec8e6d229e6f5fcae6"
+    },
+    {
+      "path": "docs/google-play/store-icon.png",
+      "bytes": 209434,
+      "sha256": "da4c197793f5273eca70d7f4ea01e43f0dd233b2fc88749d21d339ce108c4754"
+    }
+  ]
+}

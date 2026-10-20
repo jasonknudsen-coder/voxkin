@@ -1,0 +1,29 @@
+[Unit]
+Description=Voxkin opt-in AI response reporting
+After=network.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+StateDirectory=voxkin-reports
+StateDirectoryMode=0700
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/voxkin-reporting/server.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_UNIX
+MemoryMax=256M
+TasksMax=24
+LimitNOFILE=128
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

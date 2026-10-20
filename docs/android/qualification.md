@@ -388,3 +388,69 @@ answer audio/provider. Synthetic fixture tests do not establish tactile feel, li
 commentary delivery, acoustic hands-free quality or real QR/admin owner acceptance.
 No live Send, synthesis, history mutations or approval commands were used.
 The final installed preview is not a public release or full universal iOS parity.
+
+## Launcher icon correction (2026-10-20, pending device acceptance)
+
+Jason reported a small square logo inside a white Pixel launcher circle. The prior
+PNG is byte-identical to the iPhone production icon; the mismatch came from legacy
+Android icon wrapping, not different artwork. Added adaptive foreground/background
+vector layers using the shared ribbon geometry and palette, with safe-zone scaling,
+and pointed both manifest icon fields at the adaptive resource. Android retains its
+launcher mask, so a circle is expected, but no white wrapper or tiny square tile.
+
+assembleDebug passed; packaged adaptive resource inspected; git diff --check passed.
+No device install or launcher visual verification: Jason is actively testing the
+existing Pixel build. No runtime logic, version, iOS asset or gateway changes.
+Next: batch with owner feedback, install when the Pixel acceptance run is finished,
+and verify circle/themed-launcher rendering on device.
+
+## Owner dictation failure and recovery (2026-10-20)
+
+Owner reported no transcript despite talking. Live logs showed unsilenced microphone
+capture ending after ~5 seconds without transcript delivery; the app later timed out.
+Google Search voice worked. Pixel Recorder then reported another app transcribing;
+AiAi recognition logs explicitly reported full service capacity. This establishes
+contention, not which client caused it. Closing Voxkin alone did not clear the
+service bindings. Restarted com.google.android.as without clearing data/models and
+reopened the unchanged Voxkin build. Owner confirmed dictation worked again; logs
+also showed a final recognition result. No cloud fallback was added.
+
+Source hardening staged separately (not the cause of the successful recovery):
+- Own recognizers before configuration/start can throw, so catch paths release them.
+- Release completed support queries and API34+ terminal download listeners; release
+  idle language binding before capture. API33 no-callback download binding remains
+  until next query/capture/background so async dispatch is not discarded.
+- Cancel aborted/no-result capture before destroy; invalidate references first.
+- Distinguish busy/rate-limit and missing completion from actual no-speech errors.
+- Put instrumentation model-support probe destruction in finally.
+
+Read-only review found the initial API33 early-release regression; corrected before
+installation. Build/JVM checks cover compilation and existing regressions; fresh
+physical lifecycle checks of the new APK remain pending while owner tests the
+working installed version. Icon correction remains queued in the same worktree.
+
+### Android 0.2.17 (19) installed
+
+At owner request, installed the queued icon/recognizer-hardening build with adb install -r. Package reports0.2.17/code19. Pixel home-screen screenshot visually confirms the full navy adaptive icon with complete ribbon and four bars, no white legacy wrapper or square tile. Left phone on Home so owner can inspect. No data clear, microphone start, message Send or audio playback. New cleanup paths still require physical lifecycle acceptance; build and existing68JVM tests passed before installation.
+
+### Owner acceptance — 2026-10-20 15:28 MDT
+
+After testing installed Android0.2.17, Jason reported: “Alright done testing, looks
+great and feels just like the iphone version.” This accepts the tested Pixel
+look-and-feel and overall experience. Earlier dictation recovery and launcher-icon
+verification remain recorded above. It is not separate evidence for every QR/admin
+flow, every audio route, all cleanup fault paths, or Android Auto support.
+
+### 0.2.18 reporting candidate — October 20
+
+Optional explicit report preview (selected response editable/removable, reason,
+optional note) and isolated HTTPS client implemented. No gateway auth, history,
+audio, automatic upload/retry, or redirects. Dedicated receiver candidate enforces
+allowlist, bounded payload/rate/storage, idempotent acceptance and 30-day cleanup.
+73 JVM tests, 3 report UI tests including in-flight Activity recreation, screenshot
+fixture and 5 endpoint tests pass. Signed release AAB validates and release APK
+signature/16KB ZIP alignment pass; lint 0 errors,22 warnings,2 hints. Independent
+review caught emoji splitting and rotation attempt loss; both fixed and rechecked.
+No actual reports or production changes. No Pixel install of 0.2.18 yet. Do not
+submit until HTTPS receiver, authorized triage/deletion and privacy deployment
+are verified. Prior full167 suite belongs to earlier baseline, not this candidate.

@@ -595,44 +595,47 @@ class DeviceSmokeTest {
             val done = CountDownLatch(1)
             var reported = false
             var recognizer: SpeechRecognizer? = null
-            instrumentation.runOnMainSync {
-                recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
-                recognizer!!.checkRecognitionSupport(
-                    Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                        .putExtra(
-                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                        )
-                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
-                        .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true),
-                    context.mainExecutor,
-                    object : RecognitionSupportCallback {
-                        override fun onSupportResult(support: RecognitionSupport) {
-                            Log.i(
-                                "VoxkinQualification",
-                                "$language installed=${support.installedOnDeviceLanguages} pending=${support.pendingOnDeviceLanguages} supported=${support.supportedOnDeviceLanguages}",
+            try {
+                instrumentation.runOnMainSync {
+                    recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+                    recognizer!!.checkRecognitionSupport(
+                        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                            .putExtra(
+                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
                             )
-                            reported = true
-                            done.countDown()
-                        }
+                            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
+                            .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true),
+                        context.mainExecutor,
+                        object : RecognitionSupportCallback {
+                            override fun onSupportResult(support: RecognitionSupport) {
+                                Log.i(
+                                    "VoxkinQualification",
+                                    "$language installed=${support.installedOnDeviceLanguages} pending=${support.pendingOnDeviceLanguages} supported=${support.supportedOnDeviceLanguages}",
+                                )
+                                reported = true
+                                done.countDown()
+                            }
 
-                        override fun onError(error: Int) {
-                            Log.i(
-                                "VoxkinQualification",
-                                "$language support check error=$error (no cloud fallback)",
-                            )
-                            reported = true
-                            done.countDown()
-                        }
-                    },
+                            override fun onError(error: Int) {
+                                Log.i(
+                                    "VoxkinQualification",
+                                    "$language support check error=$error (no cloud fallback)",
+                                )
+                                reported = true
+                                done.countDown()
+                            }
+                        },
+                    )
+                }
+                assertTrue(
+                    "Recognizer support callback must complete",
+                    done.await(15, TimeUnit.SECONDS),
                 )
+                assertTrue(reported)
+            } finally {
+                instrumentation.runOnMainSync { recognizer?.destroy() }
             }
-            assertTrue(
-                "Recognizer support callback must complete",
-                done.await(15, TimeUnit.SECONDS),
-            )
-            assertTrue(reported)
-            instrumentation.runOnMainSync { recognizer?.destroy() }
         }
     }
 }

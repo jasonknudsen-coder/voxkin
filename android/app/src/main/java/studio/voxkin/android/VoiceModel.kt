@@ -780,8 +780,7 @@ class VoiceModel @JvmOverloads constructor(
         connected = false
         busy = false
         stopRecording(true)
-        languageRecognizer?.destroy()
-        languageRecognizer = null
+        releaseLanguageRecognizer()
         stopAudio()
         speechConsent = false
         gatewaySpeechAvailable = false
@@ -1400,6 +1399,19 @@ class VoiceModel @JvmOverloads constructor(
         audioFile = null
     }
 
+    private fun releaseLanguageRecognizer(expected: SpeechRecognizer? = languageRecognizer) {
+        if (expected == null || languageRecognizer !== expected) return
+        languageRecognizer = null // Invalidate callbacks before releasing the service binding.
+        runCatching { expected.destroy() }
+    }
+
+    private fun releaseCaptureRecognizer(cancel: Boolean) {
+        val owned = recognizer ?: return
+        recognizer = null
+        if (cancel) runCatching { owned.cancel() }
+        runCatching { owned.destroy() }
+    }
+
     private fun recognitionIntent() =
         Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(
@@ -1422,10 +1434,10 @@ class VoiceModel @JvmOverloads constructor(
             return
         }
         languageStatus = "Checking on-device language model…"
-        languageRecognizer?.destroy()
+        releaseLanguageRecognizer()
         try {
-            languageRecognizer =
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { r ->
+            SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { r ->
+                    languageRecognizer = r // Own it before any operation can throw.
                     r.checkRecognitionSupport(
                         recognitionIntent(),
                         context.mainExecutor,
@@ -1446,17 +1458,21 @@ class VoiceModel @JvmOverloads constructor(
                                         else ->
                                             "$chosen is not reported as available by this on-device service."
                                     }
+                                releaseLanguageRecognizer(r)
                             }
 
                             override fun onError(error: Int) {
-                                if (language == chosen && languageRecognizer === r)
+                                if (language == chosen && languageRecognizer === r) {
                                     languageStatus =
                                         "Could not check language model availability. No cloud fallback is enabled."
+                                    releaseLanguageRecognizer(r)
+                                }
                             }
                         },
                     )
                 }
         } catch (_: Exception) {
+            releaseLanguageRecognizer()
             languageStatus = "Language check unavailable. No cloud fallback is enabled."
         }
     }
@@ -1472,10 +1488,10 @@ class VoiceModel @JvmOverloads constructor(
             languageStatus = "On-device recognition is unavailable."
             return
         }
-        languageRecognizer?.destroy()
+        releaseLanguageRecognizer()
         try {
-            languageRecognizer =
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { r ->
+            SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { r ->
+                    languageRecognizer = r // Own it before any operation can throw.
                     languageStatus = "Requesting $chosen on-device model download…"
                     if (Build.VERSION.SDK_INT >= 34)
                         r.triggerModelDownload(
@@ -1496,15 +1512,19 @@ class VoiceModel @JvmOverloads constructor(
                                 }
 
                                 override fun onScheduled() {
-                                    if (language == chosen && languageRecognizer === r)
+                                    if (language == chosen && languageRecognizer === r) {
                                         languageStatus =
                                             "Model download scheduled by Android. Check again once connected to Wi-Fi."
+                                        releaseLanguageRecognizer(r)
+                                    }
                                 }
 
                                 override fun onError(error: Int) {
-                                    if (language == chosen && languageRecognizer === r)
+                                    if (language == chosen && languageRecognizer === r) {
                                         languageStatus =
                                             "Model download could not complete. Check Android speech settings or type instead."
+                                        releaseLanguageRecognizer(r)
+                                    }
                                 }
                             },
                         )
@@ -1512,9 +1532,12 @@ class VoiceModel @JvmOverloads constructor(
                         r.triggerModelDownload(recognitionIntent())
                         languageStatus =
                             "Download requested. Tap Check model to verify when complete."
+                        // API 33 has no completion callback. Keep the binding until
+                        // the next query/capture/background so the queued request can run.
                     }
                 }
         } catch (_: Exception) {
+            releaseLanguageRecognizer()
             languageStatus = "Unable to request model download. Check Android speech settings."
         }
     }
@@ -1546,6 +1569,7 @@ class VoiceModel @JvmOverloads constructor(
                 "On-device dictation is unavailable. Install your device speech model or type; cloud fallback is disabled."
             return
         }
+        releaseLanguageRecognizer()
         prepareCaptureProvenance()
         speechGeneration++
         val current = speechGeneration
@@ -1554,8 +1578,8 @@ class VoiceModel @JvmOverloads constructor(
         recording = true
         status = "Preparing microphone…"
         try {
-            recognizer =
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { r ->
+            SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { r ->
+                    recognizer = r // Own it before configuring or starting the service.
                     r.setRecognitionListener(
                         object : RecognitionListener {
                             override fun onReadyForSpeech(params: Bundle?) {
@@ -1587,6 +1611,10 @@ class VoiceModel @JvmOverloads constructor(
                                     val recovered = finishRecognition(current, null)
                                     if (!recovered) status =
                                         when (error) {
+                                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
+                                                "Android’s speech service is busy. Stop other transcription or recording apps, then try again."
+                                            SpeechRecognizer.ERROR_TOO_MANY_REQUESTS ->
+                                                "Android’s speech service needs a moment. Wait before trying again."
                                             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
                                                 "Microphone permission required."
                                             SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED,
@@ -1655,7 +1683,7 @@ class VoiceModel @JvmOverloads constructor(
                 delay(5000)
                 if (current == speechGeneration) {
                     if (!finishRecognition(current, null))
-                        status = "No speech recognized. Please record again or type; nothing was sent."
+                        status = "The speech service did not finish transcription. Try again; nothing was sent."
                 }
             }
     }
@@ -1668,9 +1696,7 @@ class VoiceModel @JvmOverloads constructor(
             handsFree.stop()
             speechGeneration++
             settleJob?.cancel()
-            recognizer?.cancel()
-            recognizer?.destroy()
-            recognizer = null
+            releaseCaptureRecognizer(cancel = true)
             recording = false
             settling = false
             microphoneReady = false
@@ -1698,8 +1724,7 @@ class VoiceModel @JvmOverloads constructor(
         captureTiming.complete(text, android.os.SystemClock.elapsedRealtime())
         speechGeneration++
         settleJob?.cancel()
-        recognizer?.destroy()
-        recognizer = null
+        releaseCaptureRecognizer(cancel = text.isNullOrBlank())
         recording = false
         settling = false
         microphoneReady = false

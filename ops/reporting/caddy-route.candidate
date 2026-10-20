@@ -1,0 +1,12 @@
+# Insert INSIDE the existing Voxkin hostname block, before file_server.
+# Do not replace unrelated host configuration. No access/body logging on this route.
+handle /api/reports {
+    request_body {
+        max_size 200000
+    }
+    reverse_proxy 127.0.0.1:8793 {
+        header_up X-Report-Client-IP {remote_host}
+        header_up -Authorization
+        header_up -Cookie
+    }
+}

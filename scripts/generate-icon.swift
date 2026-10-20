@@ -4,11 +4,12 @@ import AppKit
 import ImageIO
 import UniformTypeIdentifiers
 
-let size = 1024
+let size = CommandLine.arguments.count > 2 ? Int(CommandLine.arguments[2])! : 1024
+precondition(size > 0 && size <= 4096)
 let context = CGContext(data: nil, width: size, height: size, bitsPerComponent: 8,
     bytesPerRow: size * 4, space: CGColorSpaceCreateDeviceRGB(),
     bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
-context.scaleBy(x: 1.024, y: 1.024)
+context.scaleBy(x: CGFloat(size) / 1000, y: CGFloat(size) / 1000)
 // Use top-left coordinates, shared with SVG and SwiftUI.
 context.translateBy(x: 0, y: 1000)
 context.scaleBy(x: 1, y: -1)
@@ -61,4 +62,4 @@ let output = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "App/A
 let destination = CGImageDestinationCreateWithURL(URL(fileURLWithPath: output) as CFURL, UTType.png.identifier as CFString, 1, nil)!
 CGImageDestinationAddImage(destination, context.makeImage()!, nil)
 precondition(CGImageDestinationFinalize(destination))
-print("Generated opaque 1024 × 1024 Voxkin icon: \(output)")
+print("Generated opaque \(size) × \(size) Voxkin icon: \(output)")

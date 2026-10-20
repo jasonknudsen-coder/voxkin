@@ -26,3 +26,9 @@ node_modules/
 *.key
 *.ipa
 *.xcarchive/
+
+# Android upload signing material must remain outside source control
+*.jks
+*.keystore
+*.aab
+*.apks
