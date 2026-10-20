@@ -43,7 +43,10 @@ Choose English or Spanish in Settings. On Talk, tap the microphone, wait for
 “Listening · speak now”, speak, then tap the Stop square and review the transcript.
 The primary control becomes a Send arrow only after transcription finishes.
 Send is a separate explicit action; use the keyboard button to type instead. Missing
-on-device speech support falls back to typing, not cloud transcription.
+on-device speech support falls back to typing, not cloud transcription. If final
+recognition fails or times out, the last useful recognized words remain in the
+draft with an incomplete-transcription warning. Review them before sending;
+Cancel still discards the current capture.
 
 Speech source selects **Gateway default** (`tts.speak`) or **Local voices**
 (`voxkin.speak`) when advertised by an owner gateway. Restricted access only permits

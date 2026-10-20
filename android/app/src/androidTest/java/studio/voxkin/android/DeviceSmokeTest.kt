@@ -26,6 +26,100 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class DeviceSmokeTest {
+    private fun setPartial(model: VoiceModel, text: String) {
+        @Suppress("UNCHECKED_CAST")
+        val state = VoiceModel::class.java.getDeclaredField("partial" + "$" + "delegate")
+            .apply { isAccessible = true }.get(model) as MutableState<String>
+        state.value = text
+    }
+
+    @Test
+    fun settleTimeoutRecoversOnlyTheStillActiveCapture() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        lateinit var active: VoiceModel
+        lateinit var cancelled: VoiceModel
+        val timeout = VoiceModel::class.java.getDeclaredMethod(
+            "startSettleTimeout", Int::class.javaPrimitiveType
+        ).apply { isAccessible = true }
+        val generation = VoiceModel::class.java.getDeclaredField("speechGeneration")
+            .apply { isAccessible = true }
+        instrumentation.runOnMainSync {
+            active = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            cancelled = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            setPartial(active, "Recovered after timeout.")
+            setPartial(cancelled, "Must never return.")
+            timeout.invoke(active, generation.getInt(active))
+            timeout.invoke(cancelled, generation.getInt(cancelled))
+            cancelled.stopRecording(discard = true)
+        }
+        // Exercise the real five-second settle job on the Android main dispatcher.
+        Thread.sleep(5500)
+        instrumentation.runOnMainSync {
+            try {
+                assertEquals("Recovered after timeout.", active.draft)
+                assertTrue(active.status.contains("may be incomplete"))
+                assertFalse(active.requestPending)
+                assertEquals("", cancelled.draft)
+                assertEquals("", cancelled.partial)
+                assertFalse(cancelled.requestPending)
+            } finally {
+                active.disconnect()
+                cancelled.disconnect()
+            }
+        }
+    }
+
+    @Test
+    fun failedRecognitionRetainsWordsForReviewWithoutSending() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            val finish = VoiceModel::class.java.getDeclaredMethod(
+                "finishRecognition", Int::class.javaPrimitiveType, String::class.java
+            ).apply { isAccessible = true }
+            val generation = VoiceModel::class.java.getDeclaredField("speechGeneration")
+                .apply { isAccessible = true }
+            model.draft = "Existing draft."
+            setPartial(model, "Hola, estas son mis palabras.")
+            finish.invoke(model, generation.getInt(model), null)
+            assertEquals("Existing draft. Hola, estas son mis palabras.", model.draft)
+            assertEquals("", model.partial)
+            assertTrue(model.status.contains("may be incomplete"))
+            assertFalse(model.requestPending)
+            assertFalse(model.recording)
+            assertFalse(model.settling)
+            // A late final callback cannot append duplicate words.
+            finish.invoke(model, generation.getInt(model) - 1, "late duplicate")
+            assertEquals("Existing draft. Hola, estas son mis palabras.", model.draft)
+            model.disconnect()
+        }
+    }
+
+    @Test
+    fun finalRecognitionWinsAndCancelNeverRecoversDiscardedWords() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            val finish = VoiceModel::class.java.getDeclaredMethod(
+                "finishRecognition", Int::class.javaPrimitiveType, String::class.java
+            ).apply { isAccessible = true }
+            val generation = VoiceModel::class.java.getDeclaredField("speechGeneration")
+                .apply { isAccessible = true }
+            setPartial(model, "unfinished")
+            finish.invoke(model, generation.getInt(model), "Final words.")
+            assertEquals("Final words.", model.draft)
+            assertFalse(model.status.contains("incomplete"))
+            setPartial(model, "discard this")
+            val oldGeneration = generation.getInt(model)
+            model.stopRecording(discard = true)
+            finish.invoke(model, oldGeneration, "late final")
+            assertEquals("Final words.", model.draft)
+            assertEquals("", model.partial)
+            assertFalse(model.requestPending)
+            finish.invoke(model, generation.getInt(model), " ")
+            assertTrue(model.status.contains("No speech recognized"))
+            model.disconnect()
+        }
+    }
+
     @Test
     fun mismatchedRunIdStopsWithoutReplayingOrAdoptingRun() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {

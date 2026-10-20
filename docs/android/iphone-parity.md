@@ -71,17 +71,17 @@ This is a source audit plus bounded device tests, not a full parity declaration.
 of restoring the last authorized endpoint/agent conversation. No automatic stable
 conversation naming, timestamps/previews/selected-row marker, pagination or older
 message loading. History capabilities are not yet independently gated per method.
-Owner archive filtering should be explicitly aligned with iOS.
+Owner archive filtering now explicitly excludes archived sessions, as on iOS.
 
 **Response experience:** final-only replies, no streaming/interim agent updates,
 no receipt tone or spoken progress option, no response timing/provider panel.
-Reply display is plain text, not formatted Markdown. Speech does not yet apply the
-iOS Markdown cleanup or short-first-chunk/prefetch pipeline; Android currently
+Reply display is plain text, not formatted Markdown. Speech now applies inline Markdown and punctuation cleanup; the
+short-first-chunk/prefetch pipeline remains missing. Android currently
 speaks bounded chunks for longer replies while iOS limits speech to4,000characters.
 
-**Capture/lifecycle:** no hands-free conversation or haptic cues. Android may drop
-partial hypotheses when final recognition fails, whereas iOS retains them for
-review. Returning requires explicit reconnect instead of iOS foreground reconnect.
+**Capture/lifecycle:** no hands-free conversation or haptic cues. Android now retains the last nonempty
+partial hypothesis for review when final recognition fails or times out; Cancel
+still discards it. Returning requires explicit reconnect instead of iOS foreground reconnect.
 Android language is explicitly English/Spanish independent of speech source;
 iOS gateway-default dictation follows device locale. Android allows text-only
 Send without speech consent; iOS requires its speech-policy acceptance before Send.
@@ -96,3 +96,23 @@ iOS; do not describe it as erasing every setting. Android Auto remains separate.
 UI, Android model downloads and audio focus, temporary private playback files
 (cleaned after playback) versus iOS memory playback. These need equivalent privacy
 and usability guarantees, not identical system implementation.
+
+## Recovery and speech follow-up (0.2.2, 2026-10-20)
+
+- Empty partial callbacks preserve the last useful hypothesis. Error, empty final,
+  and settle timeout recover it into the editable draft with an incomplete-words
+  warning. Final text wins when available; neither path sends automatically.
+- Cancel, context change and stale callbacks cannot restore discarded capture.
+- Speech-only CommonMark parsing removes inline emphasis/code delimiters and link
+  destinations while preserving their visible words. iPhone punctuation/range
+  fixtures pass in English and Spanish. Original reply/history text is unchanged.
+- Owner history explicitly excludes archived sessions.
+- Independent read-only review: no blocking findings. Accepted recommendation:
+  exercise the real settle timeout plus cancellation before timeout on-device.
+- Delegation checkpoint: one read-only reviewer; lead retained all file edits and
+  device ownership. Cockpit orchestration/lane registration was unavailable because
+  Voxkin is not allowlisted; no allowlist or control-plane policy was changed.
+
+These close specific audit gaps, not conversation restoration, streaming,
+hands-free, QR, administration, or full feature parity. Synthetic fault-path tests
+are not a claim of real microphone-failure or accessibility acceptance.

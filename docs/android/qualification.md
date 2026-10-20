@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.1 (3), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `17ea97e47fc602b0b7b26efd45e0e29dce02fd9d63dde80a81885db5f6d5c2b6`.
+- Version0.2.2 (4), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `4873992c7d11327359075541bcdc054112c5b9843d4cf56a0fc76d9eec5e6675`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -14,10 +14,10 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Automated evidence
 
-- **14/14 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
+- **16/16 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **18/18 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **21/21 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   background/foreground no automatic connection or recording; language support probe;
@@ -99,3 +99,17 @@ See [parity scope](iphone-parity.md) for features still outside this preview.
 - Physical Pixel owner Gateway default preview completed playback with Reply ready.
 - Source audit records remaining iPhone differences in iphone-parity.md; this is
   not full-feature parity.
+
+## Recovery and speech follow-up (0.2.2)
+
+- JVM speech fixtures cover nested/reference links, formatting, English/Spanish
+  punctuation, ranges, arithmetic, Unicode, and paragraph boundaries.
+- Physical instrumentation verifies failed-final recovery into an existing draft,
+  final-over-partial preference, stale callbacks after Cancel, and the real
+  five-second settle timeout with a simultaneously cancelled capture.
+- All37 automated tests pass; Android lint remains0errors/19warnings.
+- Independent source review found no blocking defects. Test runner removed after
+  qualification; application data/pairing retained during the APK upgrade.
+- Saved owner pairing reconnected successfully after the upgrade; returned to Talk.
+- Recovery fault paths are synthetic on-device tests, not a real microphone-error
+  acceptance test. Human audio quality/route acceptance remains outstanding.

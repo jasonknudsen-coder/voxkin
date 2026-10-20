@@ -522,7 +522,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                 if (useLocal)
                     require(localVoice && voices.any { it.id == selectedVoice && it.language == selectedLanguage })
                 else require(!restricted && gatewaySpeechAvailable) { "Gateway speech source is unavailable." }
-                for (chunk in SpeechPlan.chunks(text)) {
+                for (chunk in SpeechPlan.chunks(SpeechText.prepare(text))) {
                     currentCoroutineContext().ensureActive()
                     val response =
                         t.request(
@@ -817,8 +817,8 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
 
                             override fun onError(error: Int) {
                                 if (current == speechGeneration) {
-                                    finishRecognition(current, null)
-                                    status =
+                                    val recovered = finishRecognition(current, null)
+                                    if (!recovered) status =
                                         when (error) {
                                             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
                                                 "Microphone permission required."
@@ -847,14 +847,13 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                             }
 
                             override fun onPartialResults(results: Bundle?) {
-                                if (current == speechGeneration)
-                                    partial =
-                                        results
-                                            ?.getStringArrayList(
-                                                SpeechRecognizer.RESULTS_RECOGNITION
-                                            )
-                                            ?.firstOrNull()
-                                            .orEmpty()
+                                if (current == speechGeneration) {
+                                    val hypothesis = results
+                                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                                        ?.firstOrNull()
+                                    // Empty callbacks must not erase useful words from this capture.
+                                    if (!hypothesis.isNullOrBlank()) partial = hypothesis
+                                }
                             }
 
                             override fun onEvent(eventType: Int, params: Bundle?) {}
@@ -884,9 +883,8 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
             viewModelScope.launch {
                 delay(5000)
                 if (current == speechGeneration) {
-                    finishRecognition(current, null)
-                    status =
-                        "Final transcription unavailable. Please record again or type; partial words were not sent."
+                    if (!finishRecognition(current, null))
+                        status = "No speech recognized. Please record again or type; nothing was sent."
                 }
             }
     }
@@ -913,8 +911,10 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun finishRecognition(current: Int, text: String?) {
-        if (current != speechGeneration) return
+    private fun finishRecognition(current: Int, text: String?): Boolean {
+        if (current != speechGeneration) return false
+        val recovered = text.isNullOrBlank() && partial.isNotBlank()
+        val captured = text?.takeIf { it.isNotBlank() } ?: partial
         speechGeneration++
         settleJob?.cancel()
         recognizer?.destroy()
@@ -924,10 +924,13 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
         microphoneReady = false
         level = 0f
         partial = ""
-        if (!text.isNullOrBlank()) {
-            draft = listOf(draft, text).filter { it.isNotBlank() }.joinToString(" ")
-            status = "Review or edit your words, then tap Send."
-        }
+        if (captured.isNotBlank()) {
+            draft = listOf(draft, captured).filter { it.isNotBlank() }.joinToString(" ")
+            status = if (recovered)
+                "Final transcription unavailable. Recovered words may be incomplete — review or edit, then tap Send. Nothing was sent."
+            else "Review or edit your words, then tap Send."
+        } else status = "No speech recognized. Tap Record to try again or type."
+        return captured.isNotBlank()
     }
 
     fun listHistory() {
@@ -943,6 +946,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                             "search" to "agent:$agent:voxkin:",
                             "limit" to 50,
                             "includeDerivedTitles" to true,
+                            "archived" to false,
                             "includeGlobal" to false,
                             "includeUnknown" to false,
                             "excludeSubagents" to true,
