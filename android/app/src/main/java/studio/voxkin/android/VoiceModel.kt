@@ -60,7 +60,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
     var partial by mutableStateOf("")
         private set
 
-    var language by mutableStateOf("en-US")
+    var language by mutableStateOf(store.get("language") ?: "en-US")
     var speechConsent by mutableStateOf(false)
     var voice by mutableStateOf("")
     var voices by mutableStateOf<List<GatewayVoice>>(emptyList())
@@ -84,7 +84,12 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
     private var scopeJob: Job? = null
     private val operations = mutableSetOf<Job>()
     private var turnJob: Job? = null
-    private var activeRun: String? = null
+    private var activeRun by mutableStateOf<String?>(null)
+    val requestPending: Boolean get() = activeRun != null
+    var speaking by mutableStateOf(false)
+        private set
+    var replyLength by mutableStateOf(runCatching { ReplyLength.valueOf(store.get("replyLength") ?: "BRIEF") }.getOrDefault(ReplyLength.BRIEF))
+        private set
     private var sessionId = UUID.randomUUID().toString()
     private var recognizer: SpeechRecognizer? = null
     private var languageRecognizer: SpeechRecognizer? = null
@@ -140,8 +145,40 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
     fun chooseLanguage(value: String) {
         if (recording || settling) return
         language = value
-        voice = voices.firstOrNull { it.language == value.substringBefore('-') }?.id.orEmpty()
+        store.put("language", value)
+        val savedVoice = store.get("voice:${gateway.trim()}:$value")
+        voice = voices.firstOrNull { it.language == value.substringBefore('-') && it.id == savedVoice }?.id
+            ?: voices.firstOrNull { it.language == value.substringBefore('-') }?.id.orEmpty()
         checkLanguage()
+    }
+
+    fun chooseVoice(value: String) {
+        if (busy || recording || settling || speaking) return
+        if (voices.none { it.id == value && it.language == language.substringBefore('-') }) return
+        voice = value
+        store.put("voice:${gateway.trim()}:$language", value)
+    }
+
+    fun chooseSpeechConsent(value: Boolean) {
+        speechConsent = value
+        if (gateway.isNotBlank()) store.put("speech-consent:${gateway.trim()}", value.toString())
+        if (!value) stopAudio()
+    }
+
+    fun chooseReplyLength(value: ReplyLength) {
+        replyLength = value
+        store.put("replyLength", value.name)
+    }
+
+    fun clearDraft() {
+        if (busy) return
+        stopRecording(true)
+        draft = ""
+    }
+
+    fun previewVoice() {
+        if (!connected || busy || recording || settling || !speechConsent) return
+        speak(if (language.startsWith("es")) "Hola. Esta es tu voz de Voxkin." else "Hello. This is your Voxkin voice.")
     }
 
     private fun launchHistory(block: suspend () -> Unit) {
@@ -222,6 +259,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                         }
                     if (!restricted) agent = agents.firstOrNull()?.first ?: error("No agents")
                     connected = true
+                    speechConsent = store.get("speech-consent:${gateway.trim()}") == "true"
                     status = "Connected. Tap Record or type a message."
                     sessionId =
                         if (restricted) {
@@ -325,6 +363,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
     fun forget() {
         disconnect()
         store.remove(credentialKey())
+        store.remove("speech-consent:${gateway.trim()}")
         if (!restricted) store.remove("identity:${gateway.trim()}")
         token = ""
         invitation = ""
@@ -352,11 +391,12 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
     fun send() {
         if (!connected || busy || recording || settling || draft.isBlank()) return
         val text = draft.trim()
-        if (text.length > 16000) {
-            status = "Message too long."
+        if (text.length > 4000) {
+            status = "Keep messages under 4,000 characters."
             return
         }
         val t = transport ?: return
+        val requestText = replyLength.requestText(text, language)
         stopAudio()
         val current = generation
         val run = UUID.randomUUID().toString()
@@ -381,7 +421,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
                                 obj(
                                     "agentId" to agent,
                                     "sessionKey" to session,
-                                    "message" to text,
+                                    "message" to requestText,
                                     "idempotencyKey" to run,
                                     "deliver" to false,
                                 ),
@@ -456,55 +496,60 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
         val audioEpoch = audioGeneration
         val selectedVoice = voice
         val selectedLanguage = language.substringBefore('-')
+        speaking = true
         speechJob = launchTask {
-            if (localVoice)
-                require(voices.any { it.id == selectedVoice && it.language == selectedLanguage })
-            for (chunk in SpeechPlan.chunks(text)) {
-                currentCoroutineContext().ensureActive()
-                val response =
-                    t.request(
-                        if (localVoice) "voxkin.speak" else "tts.speak",
-                        if (localVoice)
-                            obj(
-                                "text" to chunk,
-                                "language" to selectedLanguage,
-                                "voice" to selectedVoice,
-                            )
-                        else obj("text" to chunk),
-                    )
-                if (
-                    current != generation ||
-                        audioEpoch != audioGeneration ||
-                        !speechConsent ||
-                        recording ||
-                        settling
-                )
-                    return@launchTask
+            try {
                 if (localVoice)
-                    require(
-                        response.optString("provider") == "voxkin-local" &&
-                            response.optString("voice") == selectedVoice &&
-                            response.optString("language") == selectedLanguage
-                    )
-                require(response.optString("provider").isNotBlank())
-                val encoded = response.optString("audioBase64")
-                require(encoded.length <= 8_000_000)
-                val bytes = Base64.getDecoder().decode(encoded)
-                require(bytes.size in 1..6_000_000)
-                require(
-                    response.optString("mimeType") in
-                        listOf(
-                            "audio/mpeg",
-                            "audio/mp3",
-                            "audio/wav",
-                            "audio/x-wav",
-                            "audio/mp4",
-                            "audio/aac",
+                    require(voices.any { it.id == selectedVoice && it.language == selectedLanguage })
+                for (chunk in SpeechPlan.chunks(text)) {
+                    currentCoroutineContext().ensureActive()
+                    val response =
+                        t.request(
+                            if (localVoice) "voxkin.speak" else "tts.speak",
+                            if (localVoice)
+                                obj(
+                                    "text" to chunk,
+                                    "language" to selectedLanguage,
+                                    "voice" to selectedVoice,
+                                )
+                            else obj("text" to chunk),
                         )
-                )
-                playClip(bytes, current, audioEpoch)
+                    if (
+                        current != generation ||
+                            audioEpoch != audioGeneration ||
+                            !speechConsent ||
+                            recording ||
+                            settling
+                    )
+                        return@launchTask
+                    if (localVoice)
+                        require(
+                            response.optString("provider") == "voxkin-local" &&
+                                response.optString("voice") == selectedVoice &&
+                                response.optString("language") == selectedLanguage
+                        )
+                    require(response.optString("provider").isNotBlank())
+                    val encoded = response.optString("audioBase64")
+                    require(encoded.length <= 8_000_000)
+                    val bytes = Base64.getDecoder().decode(encoded)
+                    require(bytes.size in 1..6_000_000)
+                    require(
+                        response.optString("mimeType") in
+                            listOf(
+                                "audio/mpeg",
+                                "audio/mp3",
+                                "audio/wav",
+                                "audio/x-wav",
+                                "audio/mp4",
+                                "audio/aac",
+                            )
+                    )
+                    playClip(bytes, current, audioEpoch)
+                }
+                if (current == generation && audioEpoch == audioGeneration) status = "Reply ready."
+            } finally {
+                if (audioEpoch == audioGeneration) speaking = false
             }
-            if (current == generation && audioEpoch == audioGeneration) status = "Reply ready."
         }
     }
 
@@ -572,6 +617,7 @@ class VoiceModel(app: Application) : AndroidViewModel(app) {
 
     fun stopAudio() {
         audioGeneration++
+        speaking = false
         speechJob?.cancel()
         speechJob = null
         focus?.let { audioManager.abandonAudioFocusRequest(it) }

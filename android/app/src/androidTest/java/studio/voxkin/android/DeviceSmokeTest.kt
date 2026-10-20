@@ -27,6 +27,45 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class DeviceSmokeTest {
     @Test
+    fun clearDraftDiscardsPartialCaptureWithoutSending() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            model.draft = "Synthetic draft"
+            for (name in listOf("recording", "microphoneReady")) {
+                @Suppress("UNCHECKED_CAST")
+                val state = VoiceModel::class.java.getDeclaredField(name + "$" + "delegate")
+                    .apply { isAccessible = true }.get(model) as MutableState<Boolean>
+                state.value = true
+            }
+            model.clearDraft()
+            assertEquals("", model.draft)
+            assertFalse(model.recording)
+            assertFalse(model.microphoneReady)
+            assertFalse(model.requestPending)
+            assertTrue(model.messages.isEmpty())
+            model.disconnect()
+        }
+    }
+
+    @Test
+    fun previewRequiresConnectionAndConsent() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val model = VoiceModel(ApplicationProvider.getApplicationContext<Application>())
+            model.previewVoice()
+            assertFalse(model.speaking)
+            @Suppress("UNCHECKED_CAST")
+            val state = VoiceModel::class.java.getDeclaredField("connected" + "$" + "delegate")
+                .apply { isAccessible = true }.get(model) as MutableState<Boolean>
+            state.value = true
+            model.speechConsent = false
+            model.previewVoice()
+            assertFalse(model.speaking)
+            assertFalse(model.requestPending)
+            model.disconnect()
+        }
+    }
+
+    @Test
     fun guestForgetPreservesOwnerIdentityAndGrantAtSameOrigin() {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             val app = ApplicationProvider.getApplicationContext<Application>()

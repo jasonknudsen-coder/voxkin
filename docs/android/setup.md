@@ -39,12 +39,17 @@ bypass certificate validation to connect a local test server.
 
 ## Talk and history
 
-Choose English or Spanish. Tap Record, wait for the Listening indicator, speak,
-then stop and review the transcript. Send is a separate explicit action. Missing
+Choose English or Spanish in Settings. On Talk, tap the microphone, wait for
+“Listening · speak now”, speak, then tap the Stop square and review the transcript.
+The primary control becomes a Send arrow only after transcription finishes.
+Send is a separate explicit action; use the keyboard button to type instead. Missing
 on-device speech support falls back to typing, not cloud transcription.
 
 Gateway speech is opt-in: reply text may be processed by the configured gateway
-speech provider and fallback. Android does not replace the gateway's privacy
+speech provider and fallback. Consent and voice selection are remembered for that
+gateway after authentication. Preview voice uses the same consent and Stop audio
+controls as replies. Brief / Balanced / Full applies only to new messages from
+this phone; slash and bang commands are sent unchanged. Android does not replace the gateway's privacy
 policy. Leaving the application stops capture/playback and disconnects; reconnect
 explicitly when returning. No pending message is automatically replayed.
 
@@ -60,3 +65,6 @@ Paste/deep-link setup is supported. The Android preview is not yet a claim of fu
 iOS feature parity (including owner invitation-management UI and hands-free
 conversation). Physical microphone/language, routing, lifecycle and live gateway
 checks must be recorded before calling it qualified.
+
+See [iPhone presentation parity](iphone-parity.md) for the shared design and
+explicit remaining feature differences.

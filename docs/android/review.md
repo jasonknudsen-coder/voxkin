@@ -34,3 +34,17 @@ most20, not50. The limit/UI were corrected and the live guest history flow passe
 Guest Forget now preserves the owner identity/grant at the same origin; both the
 mode-isolation regression and live return-to-owner reconnect passed. Final device
 suite:9/9. Final JVM suite:12/12.
+
+## iPhone-style presentation follow-up
+
+Independent read-only review covered the new UI wiring and model preference/audio
+state changes. Recording hides Send, settling disables the primary action, Cancel
+recording discards capture, and Cancel request stays separate from Stop audio.
+Endpoint-bound consent restores only after authentication; stale speech jobs cannot
+clear a newer playback state. No additional concrete blocker remained in that scope.
+
+The reviewer caught request-size growth from the new per-turn preference wrapper.
+The raw draft limit now matches iPhone (4,000 characters), preserves over-limit
+text for editing, and snapshots preferences before sending. Boundary and command
+regressions cover this behavior. Physical keyboard inspection also found a window
+panning/inset issue that was corrected before final installation.

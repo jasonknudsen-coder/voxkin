@@ -3,7 +3,7 @@
  <uses-permission android:name="android.permission.RECORD_AUDIO" />
  <queries><intent><action android:name="android.speech.RecognitionService" /></intent></queries>
  <application android:icon="@drawable/voxkin_icon" android:label="Voxkin" android:theme="@style/AppTheme" android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules" android:usesCleartextTraffic="false" android:supportsRtl="true">
-  <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop">
+  <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:windowSoftInputMode="adjustResize">
    <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
    <intent-filter><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.DEFAULT" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="voxkin" android:host="join" /><data android:scheme="voxkin" android:host="setup" /></intent-filter>
   </activity>
