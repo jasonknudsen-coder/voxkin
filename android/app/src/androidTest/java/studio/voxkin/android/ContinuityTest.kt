@@ -36,12 +36,41 @@ class ContinuityTest {
             model.restricted = false
             state(model, "agent", "main")
             state(model, "connected", true)
+            model.syntheticHistory()
             try { block(model, store, gateway) } finally {
                 model.forget()
                 model.restricted = true
                 model.forget()
             }
         }
+    }
+
+    @Test fun missingReadStartsFreshOwnerWithoutOverwritingSavedPointer() = fixture { model, store, gateway ->
+        val saved = UUID.randomUUID().toString()
+        store.put("history:owner:$gateway", obj("main" to saved).toString())
+        model.syntheticHistory(HistoryCapabilities.owner(emptyList()))
+        transport(model) { _, _ -> error("No unsupported request allowed") }
+        runBlocking { model.restoreConversation() }
+        assertTrue(model.conversationReady)
+        assertNotEquals("agent:main:voxkin:$saved", model.selectedConversationId)
+        assertEquals(saved, JSONObject(store.get("history:owner:$gateway")!!).getString("main"))
+        assertTrue(model.status.contains("Saved history is unavailable"))
+    }
+
+    @Test fun restrictedMissingHistoryCannotCreateReadOrSend() = fixture { model, _, _ ->
+        model.restricted = true
+        model.syntheticHistory(HistoryCapabilities.restricted(false, false))
+        var calls = 0
+        transport(model) { _, _ -> calls++; obj() }
+        runBlocking { model.restoreConversation() }
+        assertFalse(model.conversationReady)
+        model.newConversation()
+        model.listHistory()
+        model.draft = "Do not send"
+        model.send()
+        assertEquals(0, calls)
+        model.disconnect()
+        assertEquals(HistoryCapabilities(), model.historyCapabilities)
     }
 
     @Test fun restoreReadsHistoryWithoutSendingOrSpeakingAndPreservesDraft() = fixture { model, store, gateway ->
@@ -178,6 +207,7 @@ class ContinuityTest {
         assertEquals("", model.draft)
         pending.complete(obj("runId" to run))
         state(model, "connected", true)
+            model.syntheticHistory()
         model.speechConsent = true
         transport(model) { method, _ ->
             calls += method

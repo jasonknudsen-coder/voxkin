@@ -175,6 +175,7 @@ class RestrictedTransport(
     private val endpoint: String =
         java.net.URI("https", null, origin.host, origin.port, "/voxkin/v1", null, null).toString()
     internal var client = httpClient()
+    private var history = HistoryCapabilities()
     private var closed = false
     private var poll: Job? = null
     private val runs = mutableMapOf<String, String>()
@@ -234,6 +235,7 @@ class RestrictedTransport(
     suspend fun connect(): JSONObject {
         val h = call(obj("op" to "hello"))
         require(h.optInt("version") == 1 && h.optString("agentId").isNotBlank())
+        history = HistoryCapabilities.restricted(h.optBoolean("history"), h.optBoolean("historyActions"))
         agent = h.getString("agentId")
         return h
     }
@@ -303,13 +305,20 @@ class RestrictedTransport(
                     )
                 )
             "voxkin.catalog",
-            "voxkin.speak",
+            "voxkin.speak" -> call(JSONObject(params.toString()).put("op", method.removePrefix("voxkin.")))
             "voxkin.history.list",
             "voxkin.history.create",
             "voxkin.history.messages",
             "voxkin.history.rename",
-            "voxkin.history.delete" ->
+            "voxkin.history.delete" -> {
+                val allowed = when (method) {
+                    "voxkin.history.rename" -> history.rename
+                    "voxkin.history.delete" -> history.delete
+                    else -> history.read
+                }
+                if (!allowed) throw GatewayFailure("This gateway does not support that history operation. Update its Voxkin plugin.")
                 call(JSONObject(params.toString()).put("op", method.removePrefix("voxkin.")))
+            }
             else -> error("Operation unavailable to restricted phones")
         }
 

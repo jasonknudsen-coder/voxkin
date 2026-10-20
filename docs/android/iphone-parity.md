@@ -68,7 +68,7 @@ This is a source audit plus bounded device tests, not a full parity declaration.
 **Conversation continuity:** reconnect now restores the last authorized conversation
 per endpoint/access mode/agent. Gateway-provided timestamps/previews, current-row
 marker, conversation pagination and older-message loading are implemented.
-Automatic stable owner titles and missing-preview enrichment are implemented (0.2.9). History capabilities are not yet independently gated per method.
+Automatic stable owner titles and missing-preview enrichment are implemented (0.2.9). History capabilities are independently gated per method (0.2.11).
 Owner archive filtering now explicitly excludes archived sessions, as on iOS.
 
 **Response experience:** chat delta/status streaming is implemented; persisted
@@ -300,3 +300,12 @@ preview speech and later chunks do not overwrite first-answer measurements.
 42 JVM +67 Pixel tests passed. Read-only review found two edge cases, both fixed.
 This closes answer diagnostics, not receipt feedback, persisted commentary,
 Markdown rendering, haptics or the remaining granular capability gates.
+
+## History capability follow-up (0.2.11)
+
+Owner list/read/rename/delete and restricted history/action support are now gated
+from authenticated capabilities. Unsupported controls are disabled, with clear
+explanations; owner Talk remains usable without history reading. Mutations reject
+stale cross-agent/malformed targets, and reconnect dismisses pending dialogs.
+46 JVM +72 Pixel tests passed. Remaining response work: persisted commentary,
+receipt/spoken progress, Markdown rendering and haptics; pairing detail UI also remains.

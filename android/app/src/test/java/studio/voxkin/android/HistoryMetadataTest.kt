@@ -114,4 +114,13 @@ class HistoryMetadataTest {
         assertEquals(32000, calls.last().second.getInt("maxBytes"))
         assertEquals("Plan a mountain picnic", result.single().preview)
     }
+    @Test fun missingReadCapabilityNeverFallsBackToTranscript() = runBlocking {
+        val calls = mutableListOf<String>()
+        HistoryMetadata.enrich(listOf(item()), listOf(row()), "main", false, { true }, canRead = false) { method, _ ->
+            calls += method
+            preview(listOf(obj("role" to "user", "text" to "[Voxkin reply preference for this turn only: ...")))
+        }
+        assertEquals(listOf("sessions.preview"), calls)
+    }
+
 }

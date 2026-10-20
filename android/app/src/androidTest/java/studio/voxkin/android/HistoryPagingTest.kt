@@ -24,6 +24,7 @@ class HistoryPagingTest {
             model.gateway = "wss://history-${UUID.randomUUID()}.example.com"
             model.restricted = restricted
             state(model, "connected", true)
+            model.syntheticHistory()
             state(model, "agent", "main")
             try {
                 block(model) { request ->
@@ -35,6 +36,25 @@ class HistoryPagingTest {
                 }
             } finally { model.forget() }
         }
+    }
+
+    @Test fun mutationGatesRejectWrongScopeMalformedIdsAndUnsupportedMethods() = fixture(false) { model, install ->
+        var calls = 0
+        install { _, _ -> calls++; obj() }
+        val id = UUID.randomUUID().toString()
+        val valid = Conversation("agent:main:voxkin:$id", "Synthetic", id)
+        model.syntheticHistory(HistoryCapabilities.owner(listOf("sessions.patch")))
+        assertTrue(model.canRename(valid))
+        assertFalse(model.canDelete(valid))
+        model.delete(valid)
+        for (invalid in listOf(valid.copy(id = "agent:other:voxkin:$id"), valid.copy(sessionId = "bad"))) {
+            model.rename(invalid, "No")
+            model.delete(invalid)
+            assertFalse(model.canRename(invalid))
+        }
+        state(model, "agent", "other")
+        model.rename(valid, "Stale dialog")
+        assertEquals(0, calls)
     }
 
     @Test fun ownerMetadataCapabilitiesEnrichAndPersistOnlyScopedTopic() = fixture(false) { model, install ->
@@ -182,7 +202,7 @@ class HistoryPagingTest {
                 calls += method
                 if (method == "sessions.list") {
                     assertEquals(0, params.getInt("offset"))
-                    obj("sessions" to JSONArray().apply { repeat(50) { put(obj("key" to id, "sessionId" to "server-session")) } })
+                    obj("sessions" to JSONArray().apply { repeat(50) { put(obj("key" to id, "sessionId" to "11111111-2222-4333-8444-555555555555")) } })
                 } else if (method == "voxkin.history.list") {
                     assertFalse(params.has("before"))
                     obj("conversations" to JSONArray().put(obj("id" to id)), "nextCursor" to id)

@@ -121,6 +121,8 @@ class VoiceModel @JvmOverloads constructor(
     private var automaticConnectionSuppressed = false
     var conversationReady by mutableStateOf(true)
         private set
+    var connectionEpoch by mutableStateOf(0)
+        private set
     private var generation = 0
     private var scopeJob: Job? = null
     private val operations = mutableSetOf<Job>()
@@ -146,6 +148,14 @@ class VoiceModel @JvmOverloads constructor(
     private var focus: AudioFocusRequest? = null
     private val audioManager = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var audioFile: File? = null
+    var historyCapabilities by mutableStateOf(HistoryCapabilities())
+        private set
+    private fun validHistoryTarget(c: Conversation): Boolean =
+        if (restricted) runCatching { UUID.fromString(c.id).toString() == c.id.lowercase() }.getOrDefault(false)
+        else Protocol.owns(c.id, agent) && runCatching { UUID.fromString(c.sessionId).toString() == c.sessionId.lowercase() }.getOrDefault(false)
+    private val historyIdle get() = connected && !busy && !recording && !settling
+    fun canRename(c: Conversation) = historyIdle && historyCapabilities.rename && validHistoryTarget(c)
+    fun canDelete(c: Conversation) = historyIdle && historyCapabilities.delete && validHistoryTarget(c)
     private var historyPreviewAvailable = false
     private var historyAutoLabelAvailable = false
     private var localVoice = false
@@ -539,6 +549,7 @@ class VoiceModel @JvmOverloads constructor(
                         transport = t
                         val hello = t.connect()
                         if (current != generation) return@launch
+                        historyCapabilities = HistoryCapabilities.restricted(hello.optBoolean("history"), hello.optBoolean("historyActions"))
                         val phoneId = hello.optString("deviceId")
                         if (AccessPolicy.id(phoneId)) store.put("phone-id:$key", phoneId)
                         agent = t.agent
@@ -556,10 +567,12 @@ class VoiceModel @JvmOverloads constructor(
                             }
                         transport = t
                         val h = t.connect(gateway, store.identity(gateway), secret, requestAdmin)
+                        if (current != generation) return@launch
                         adminPermissionGranted = h.optJSONObject("auth")?.strings("scopes")?.contains("operator.admin") == true
                         val grant = h.optJSONObject("auth")?.optString("deviceToken").orEmpty()
                         store.put(key, grant.ifBlank { secret })
                         val methods = h.optJSONObject("features")?.strings("methods").orEmpty()
+                        historyCapabilities = HistoryCapabilities.owner(methods)
                         supportsAccessManagement = methods.containsAll(AccessPolicy.methods)
                         historyPreviewAvailable = methods.contains("sessions.preview")
                         historyAutoLabelAvailable = methods.contains("sessions.patch")
@@ -663,6 +676,7 @@ class VoiceModel @JvmOverloads constructor(
 
     fun disconnect(allowResume: Boolean = false) {
         clearAccess()
+        historyCapabilities = HistoryCapabilities()
         historyPreviewAvailable = false
         historyAutoLabelAvailable = false
         scannedSetup = null
@@ -672,6 +686,7 @@ class VoiceModel @JvmOverloads constructor(
             draft = ""
         }
         generation++
+        connectionEpoch++
         operations.toList().forEach { it.cancel() }
         operations.clear()
         scopeJob?.cancel()
@@ -733,6 +748,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     private suspend fun readConversation(id: String, more: Boolean = false): List<ChatLine> {
+        check(historyCapabilities.read) { "Gateway history reading is unavailable." }
         require(if (restricted) runCatching { UUID.fromString(id) }.isSuccess else Protocol.owns(id, agent))
         val current = generation
         val chosenAgent = agent
@@ -769,6 +785,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     private fun loadConversationPage(more: Boolean) {
+        if (!historyCapabilities.read) return
         launchHistory {
             val id = selectedConversationId
             val loaded = readConversation(id, more)
@@ -788,6 +805,17 @@ class VoiceModel @JvmOverloads constructor(
         conversationReady = false
         resetMessagePage()
         messages = emptyList()
+        if (!historyCapabilities.read) {
+            if (restricted) {
+                status = "This gateway does not support restricted conversation history. Update its Voxkin plugin before sending."
+            } else {
+                sessionId = UUID.randomUUID().toString()
+                draft = ""
+                conversationReady = true
+                status = "Connected. Saved history is unavailable; a fresh conversation is ready."
+            }
+            return
+        }
         try {
             val saved = JSONObject(store.get("history:${credentialKey()}") ?: "{}").optString(agent)
             if (saved.isNotEmpty()) {
@@ -1472,6 +1500,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun listHistory(more: Boolean = false) {
+        if (!historyCapabilities.list) return
         if (!connected || busy || recording || settling || (more && (!conversationsHaveMore || conversations.size >= 500))) return
         launchHistory {
             val current = generation
@@ -1524,7 +1553,7 @@ class VoiceModel @JvmOverloads constructor(
                 }
             if (!restricted && historyPreviewAvailable) {
                 val t = transport ?: return@launchHistory
-                loaded = HistoryMetadata.enrich(loaded, rows, chosenAgent, historyAutoLabelAvailable,
+                loaded = HistoryMetadata.enrich(loaded, rows, chosenAgent, historyAutoLabelAvailable, canRead = historyCapabilities.read,
                     current = { generation == current && connected && agent == chosenAgent && transport === t },
                     request = { method, params -> t.request(method, params) })
             }
@@ -1542,6 +1571,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun newConversation() {
+        if (!historyCapabilities.create) return
         if (!connected || busy || recording || settling) return
         launchHistory {
             stopAudio()
@@ -1561,6 +1591,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun openHistory(c: Conversation) {
+        if (!historyCapabilities.read) return
         if (busy || recording || settling) return
         launchHistory {
             stopAudio()
@@ -1580,7 +1611,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun rename(c: Conversation, title: String) {
-        if (busy || title.isBlank() || !connected || (!restricted && c.sessionId.isEmpty())) return
+        if (title.isBlank() || !canRename(c)) return
         launchHistory {
             transport!!.request(
                 if (restricted) "voxkin.history.rename" else "sessions.patch",
@@ -1599,7 +1630,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun delete(c: Conversation) {
-        if (busy || !connected || (!restricted && c.sessionId.isEmpty())) return
+        if (!canDelete(c)) return
         launchHistory {
             val t = transport ?: return@launchHistory
             if (restricted) t.request("voxkin.history.delete", obj("conversationId" to c.id))

@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.10 (12), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `baefad1768eb73790a566bda3f789d58f0676ebda1337d1d906586a2c21998da`.
+- Version0.2.11 (13), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `100faf42cd026703284e59f1bc89b069011952d1f0e0fa0ac4ddd3fd8c62c821`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -14,16 +14,16 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Automated evidence
 
-- **42/42 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
+- **46/46 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **67/67 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **72/72 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
   clear-capture cancellation; preview consent; recording hides Send; explicit reviewed-draft
   send state and keyboard editing; over-limit draft preservation.
-- Android lint: **0 errors,20 warnings,1 hint** (dependency currency, style/manifest and
+- Android lint: **0 errors,20 warnings,2 hints** (dependency currency, style/manifest and
   launcher-icon shape). No clean-lint claim.
 - Independent read-only review and follow-up confirmed fixes for the identified
   protocol, cancellation and context-switching bugs in earlier batches. The0.2.6
@@ -295,3 +295,22 @@ failed because the speech method gained an argument; updated call sites and the
 complete67-test rerun passed. Independent read-only review found the preview and
 empty-update cases; both fixed with regression coverage. No live chat/admin/history
 mutation was used for this batch. Dictation-tail/receipt timings are not implemented.
+
+## Granular history capability follow-up (0.2.11)
+
+Authenticated owner methods separately gate list/read/rename/delete; delete needs
+both archive-patch and delete support. Local owner New remains available. Restricted
+hello history/historyActions flags gate model controls and transport requests before
+HTTP. No read support starts a fresh usable owner conversation without overwriting
+the saved restore pointer; restricted sending stays disabled with an update explanation.
+Advertised read failures retain fail-closed restoration. Preview enrichment cannot
+fall back to an unadvertised read. Mutation targets require scoped keys and valid
+expected IDs. Pending dialogs are keyed to connection epoch and agent context.
+
+46 JVM +72 Pixel tests passed (118 total), lint0errors20warnings2hints. Coverage
+includes capability truth table, zero-HTTP restricted rejection, unsupported owner
+restore, restricted no-send, invalid/stale targets, no-read preview fallback, disabled
+UI and same-context reconnect dismissal. One old deletion fixture used a non-UUID
+expected session ID; corrected to a valid synthetic UUID and full suite reran green.
+Independent read-only review found no blocker; recommended epoch-keyed dialogs,
+implemented and UI-tested. No live history/admin changes were made.

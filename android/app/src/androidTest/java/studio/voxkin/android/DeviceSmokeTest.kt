@@ -27,6 +27,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class DeviceSmokeTest {
     private fun testModel() = VoiceModel(ApplicationProvider.getApplicationContext<Application>(), automaticConnection = false).apply {
+        syntheticHistory()
         gateway = "wss://device-test-${UUID.randomUUID()}.example.com"
         restricted = false
     }

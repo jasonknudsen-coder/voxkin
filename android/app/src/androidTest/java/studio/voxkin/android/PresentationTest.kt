@@ -14,7 +14,7 @@ import org.junit.Test
 class PresentationTest {
     @get:Rule val ui = createAndroidComposeRule<MainActivity>()
 
-    private fun model(): VoiceModel = ViewModelProvider(ui.activity)[VoiceModel::class.java]
+    private fun model(): VoiceModel = ViewModelProvider(ui.activity)[VoiceModel::class.java].apply { syntheticHistory() }
 
     @Test fun invitationQrProtectsWindowAndHidingClearsProtection() {
         ui.runOnIdle {
@@ -99,6 +99,45 @@ class PresentationTest {
         ui.onNodeWithText("Not now").performClick()
         ui.runOnIdle { assertFalse(model().conversationMode); assertFalse(model().recording) }
         ui.onNodeWithContentDescription("Talk to agent").assertIsDisplayed()
+    }
+
+    @Test fun unsupportedHistoryDisablesRefreshButOwnerCanStartNew() {
+        ui.runOnIdle {
+            val m = model()
+            flag(m, "connected", true)
+            m.syntheticHistory(HistoryCapabilities.owner(emptyList()))
+            m.page = 1
+        }
+        ui.onNodeWithContentDescription("Refresh history").assertIsNotEnabled()
+        ui.onNodeWithText("New conversation").assertIsEnabled()
+        ui.onNodeWithText("This gateway does not provide a conversation list.").assertIsDisplayed()
+        ui.onNodeWithText("Refresh conversation").performScrollTo().assertIsNotEnabled()
+    }
+
+    @Test fun sameContextReconnectDismissesPendingRename() {
+        lateinit var m: VoiceModel
+        ui.runOnIdle {
+            m = model()
+            flag(m, "connected", true)
+            @Suppress("UNCHECKED_CAST")
+            fun set(name: String, value: Any) {
+                (VoiceModel::class.java.getDeclaredField(name + "$" + "delegate")
+                    .apply { isAccessible = true }.get(m) as MutableState<Any>).value = value
+            }
+            set("agent", "main")
+            val id = java.util.UUID.randomUUID().toString()
+            set("conversations", listOf(Conversation("agent:main:voxkin:$id", "Synthetic topic", id)))
+            m.page = 1
+        }
+        ui.onNodeWithContentDescription("Actions for Synthetic topic").performClick()
+        ui.onNodeWithText("Rename").performClick()
+        ui.onNodeWithText("Rename conversation").assertIsDisplayed()
+        ui.runOnIdle {
+            m.disconnect()
+            flag(m, "connected", true)
+            m.syntheticHistory()
+        }
+        ui.onNodeWithText("Rename conversation").assertDoesNotExist()
     }
 
     @Test fun historyShowsSelectedSummaryAndPagingControls() {

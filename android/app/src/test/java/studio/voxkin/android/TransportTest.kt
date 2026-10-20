@@ -127,6 +127,19 @@ class TransportTest {
         }
     }
 
+    @Test fun restrictedMissingFlagsRejectHistoryWithoutHttp() = fixture { server, client, url ->
+        runBlocking {
+            server.enqueue(MockResponse().setBody("{\"version\":1,\"agentId\":\"guest\"}"))
+            val t = RestrictedTransport(url, "synthetic", this) { _, _ -> }
+            t.client = client
+            t.connect()
+            for (method in listOf("list", "create", "messages", "rename", "delete"))
+                assertTrue(runCatching { t.request("voxkin.history.$method", obj()) }.exceptionOrNull() is GatewayFailure)
+            assertEquals(1, server.requestCount)
+            t.close()
+        }
+    }
+
     @Test fun ownerHandshakeUsesAndroidIdentityAndHasNoReplay() = ownerHandshake(false)
     @Test fun adminScopeIsRequestedOnlyWhenExplicitAndReadWriteFallbackStillConnects() = ownerHandshake(true)
     private fun ownerHandshake(admin: Boolean) = fixture { server, client, url ->

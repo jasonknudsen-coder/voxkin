@@ -25,7 +25,7 @@ internal object HistoryMetadata {
 
     suspend fun enrich(
         items: List<Conversation>, rows: List<JSONObject>, agent: String, canPatch: Boolean,
-        current: () -> Boolean, request: suspend (String, JSONObject) -> JSONObject,
+        current: () -> Boolean, canRead: Boolean = true, request: suspend (String, JSONObject) -> JSONObject,
     ): List<Conversation> {
         val eligible = rows.filter { row ->
             val key = row.optString("key")
@@ -53,7 +53,7 @@ internal object HistoryMetadata {
                 val index = output.indexOfFirst { it.id == key }
                 if (index < 0) continue
                 var messages = preview.rows("items").take(8)
-                if (messages.any { it.optString("role") == "user" && it.optString("text").startsWith("[Voxkin reply preference for this turn only: ") && it.optString("text").endsWith("...") } && fallbackReads < 4) {
+                if (canRead && messages.any { it.optString("role") == "user" && it.optString("text").startsWith("[Voxkin reply preference for this turn only: ") && it.optString("text").endsWith("...") } && fallbackReads < 4) {
                     fallbackReads++
                     checked("chat.history", obj("sessionKey" to key, "agentId" to agent, "limit" to 8, "offset" to 0, "maxBytes" to 32000))
                         ?.let { messages = it.rows("messages").take(8) }

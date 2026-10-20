@@ -157,7 +157,7 @@ private fun Voxkin(m: VoiceModel, onScanSetup: () -> Unit) {
                 if (m.page == 1)
                     IconButton(
                         onClick = { m.listHistory() },
-                        enabled = m.connected && !m.busy && !m.recording && !m.settling,
+                        enabled = m.historyCapabilities.list && m.connected && !m.busy && !m.recording && !m.settling,
                         modifier =
                             Modifier.align(Alignment.CenterEnd).semantics {
                                 contentDescription = "Refresh history"
@@ -811,8 +811,8 @@ private fun <T> GroupPicker(
 
 @Composable
 private fun HistoryPage(m: VoiceModel) {
-    var rename by remember { mutableStateOf<Conversation?>(null) }
-    var deleting by remember { mutableStateOf<Conversation?>(null) }
+    var rename by remember(m.connectionEpoch, m.connected, m.agent, m.gateway, m.restricted) { mutableStateOf<Conversation?>(null) }
+    var deleting by remember(m.connectionEpoch, m.connected, m.agent, m.gateway, m.restricted) { mutableStateOf<Conversation?>(null) }
     var title by remember { mutableStateOf("") }
     val enabled = m.connected && !m.busy && !m.recording && !m.settling
     Column(
@@ -830,17 +830,17 @@ private fun HistoryPage(m: VoiceModel) {
                 "Conversations · ${m.agent}",
                 "Stored on your gateway. Only Voxkin conversations are shown. Opening history never plays audio. Gateway retention policies apply.",
             ) {
-                GroupAction("New conversation", VoxkinSymbol.Plus, enabled) { m.newConversation() }
+                GroupAction("New conversation", VoxkinSymbol.Plus, enabled && m.historyCapabilities.create) { m.newConversation() }
                 if (m.conversations.isEmpty() && !m.busy) {
                     GroupDivider()
-                    GroupText("No saved conversations yet.")
+                    GroupText(if (m.historyCapabilities.list) "No saved conversations yet." else "This gateway does not provide a conversation list.")
                 }
                 m.conversations.forEach { c ->
                     GroupDivider()
                     var menu by remember(c.id) { mutableStateOf(false) }
                     Row(
                         Modifier.fillMaxWidth()
-                            .clickable(enabled = enabled) { m.openHistory(c) }
+                            .clickable(enabled = enabled && m.historyCapabilities.read) { m.openHistory(c) }
                             .padding(start = 16.dp, end = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -858,7 +858,7 @@ private fun HistoryPage(m: VoiceModel) {
                         Box {
                             IconButton(
                                 onClick = { menu = true },
-                                enabled = enabled,
+                                enabled = m.canRename(c) || m.canDelete(c),
                                 modifier =
                                     Modifier.semantics {
                                         contentDescription = "Actions for ${c.title}"
@@ -873,6 +873,7 @@ private fun HistoryPage(m: VoiceModel) {
                             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                 DropdownMenuItem(
                                     text = { Text("Rename") },
+                                    enabled = m.canRename(c),
                                     onClick = {
                                         menu = false
                                         rename = c
@@ -881,6 +882,7 @@ private fun HistoryPage(m: VoiceModel) {
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Delete", color = Color(0xffff6b72)) },
+                                    enabled = m.canDelete(c),
                                     onClick = {
                                         menu = false
                                         deleting = c
@@ -892,7 +894,7 @@ private fun HistoryPage(m: VoiceModel) {
                 }
             }
         if (m.connected && m.conversationsHaveMore)
-            GroupAction("Load more conversations", enabled = enabled) { m.listHistory(more = true) }
+            GroupAction("Load more conversations", enabled = enabled && m.historyCapabilities.list) { m.listHistory(more = true) }
         if (m.busy)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -915,10 +917,10 @@ private fun HistoryPage(m: VoiceModel) {
             ) {
                 GroupAction("Continue in Talk", enabled = enabled) { m.page = 0 }
                 GroupDivider()
-                GroupAction("Refresh conversation", enabled = enabled) { m.refreshConversation() }
+                GroupAction("Refresh conversation", enabled = enabled && m.historyCapabilities.read) { m.refreshConversation() }
                 if (m.messagesHaveMore) {
                     GroupDivider()
-                    GroupAction("Load older messages", enabled = enabled) { m.loadOlderMessages() }
+                    GroupAction("Load older messages", enabled = enabled && m.historyCapabilities.read) { m.loadOlderMessages() }
                 }
             }
             m.messages
@@ -952,7 +954,7 @@ private fun HistoryPage(m: VoiceModel) {
                         m.rename(c, title)
                         rename = null
                     },
-                    enabled = title.isNotBlank() && enabled,
+                    enabled = title.isNotBlank() && m.canRename(c),
                 ) {
                     Text("Save")
                 }
@@ -975,7 +977,7 @@ private fun HistoryPage(m: VoiceModel) {
                         m.delete(c)
                         deleting = null
                     },
-                    enabled = enabled,
+                    enabled = m.canDelete(c),
                 ) {
                     Text("Delete conversation", color = Color(0xffff6b72))
                 }
