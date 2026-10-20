@@ -1286,6 +1286,22 @@ private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
             }
             GroupText(m.replyLength.detail)
         }
+        GroupSection("Last response timing") {
+            val rows = listOf(
+                "First text update" to m.timing.firstUpdate,
+                "Complete reply" to m.timing.reply,
+                "Gateway audio request" to m.timing.speechRequest,
+                "Playback setup" to m.timing.playbackSetup,
+                "Send to answer audio" to m.timing.firstAudio,
+            )
+            if (rows.all { it.second == null })
+                GroupText("Send a message to see where the wait happens.")
+            rows.forEach { (label, millis) ->
+                if (millis != null) GroupText("$label: ${String.format(java.util.Locale.getDefault(), "%.2f", millis / 1000.0)} s")
+            }
+            if (m.speechProvider.isNotBlank()) GroupText("Spoken provider: ${m.speechProvider}")
+            GroupText("Reply/update times start at Send. Gateway audio includes preparation and transfer; playback setup measures the local wait before audio starts. Durations stay in memory on this phone and reset on disconnect.")
+        }
         GroupSection("Troubleshooting") {
             GroupAction(
                 if (troubleshootingExpanded) "Hide on-device dictation details"

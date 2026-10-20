@@ -91,6 +91,10 @@ class VoiceModel @JvmOverloads constructor(
     var conversations by mutableStateOf<List<Conversation>>(emptyList())
         private set
 
+    var timing by mutableStateOf(TurnTiming())
+        private set
+    var speechProvider by mutableStateOf("")
+        private set
     var streamingText by mutableStateOf("")
         private set
 
@@ -272,7 +276,7 @@ class VoiceModel @JvmOverloads constructor(
     fun previewVoice() {
         endHandsFree()
         if (!connected || busy || recording || settling || !speechConsent) return
-        speak(if (language.startsWith("es")) "Hola. Esta es tu voz de Voxkin." else "Hello. This is your Voxkin voice.")
+        speak(if (language.startsWith("es")) "Hola. Esta es tu voz de Voxkin." else "Hello. This is your Voxkin voice.", answer = false)
     }
 
     private fun launchHistory(block: suspend () -> Unit) {
@@ -674,6 +678,8 @@ class VoiceModel @JvmOverloads constructor(
         turnJob?.cancel()
         activeRun = null
         streamingText = ""
+        timing = TurnTiming()
+        speechProvider = ""
         transport?.close()
         transport = null
         connected = false
@@ -868,6 +874,8 @@ class VoiceModel @JvmOverloads constructor(
         val current = generation
         val run = UUID.randomUUID().toString()
         activeRun = run
+        timing = TurnTiming().sent(android.os.SystemClock.elapsedRealtime())
+        speechProvider = ""
         streamingText = ""
         busy = true
         resetMessagePage() // A new turn shifts offset-based history; refresh before loading older pages.
@@ -945,6 +953,7 @@ class VoiceModel @JvmOverloads constructor(
                     val delta = p.getString("deltaText")
                     streamingText = (if (p.optBoolean("replace")) delta else streamingText + delta).take(16000)
                 } else return
+                if (streamingText.isNotBlank()) timing = timing.update(android.os.SystemClock.elapsedRealtime())
                 status = "Your agent is replying…"
             }
             "status" -> status = when (p.optString("phase")) {
@@ -954,6 +963,7 @@ class VoiceModel @JvmOverloads constructor(
                 else -> "Your agent is working…"
             }
             "final" -> {
+                timing = timing.final(android.os.SystemClock.elapsedRealtime())
                 activeRun = null
                 streamingText = ""
                 busy = false
@@ -993,7 +1003,7 @@ class VoiceModel @JvmOverloads constructor(
             launchTask { t.request("chat.abort", obj("sessionKey" to session, "runId" to run)) }
     }
 
-    private fun speak(text: String) {
+    private fun speak(text: String, answer: Boolean = true) {
         val t = transport ?: run { handsFree.stop(); return }
         stopAudio(endHandsFree = false)
         val current = generation
@@ -1053,13 +1063,14 @@ class VoiceModel @JvmOverloads constructor(
                                     "audio/aac",
                                 )
                         )
-                        bytes
+                        if (answer) timing = timing.received(android.os.SystemClock.elapsedRealtime())
+                        ReplyAudio(bytes, response.optString("provider").take(120))
                     },
-                    playback = { bytes ->
+                    playback = { clip ->
                         currentCoroutineContext().ensureActive()
                         if (current != generation || audioEpoch != audioGeneration || !speechConsent || recording || settling)
                             throw CancellationException("Speech context changed")
-                        playClip(bytes, current, audioEpoch)
+                        playClip(clip.bytes, current, audioEpoch, clip.provider, answer)
                     },
                 )
                 if (current == generation && audioEpoch == audioGeneration) {
@@ -1075,7 +1086,9 @@ class VoiceModel @JvmOverloads constructor(
         }
     }
 
-    private suspend fun playClip(bytes: ByteArray, current: Int, audioEpoch: Int) {
+    private data class ReplyAudio(val bytes: ByteArray, val provider: String)
+
+    private suspend fun playClip(bytes: ByteArray, current: Int, audioEpoch: Int, provider: String, answer: Boolean) {
         val attributes =
             AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -1112,6 +1125,10 @@ class VoiceModel @JvmOverloads constructor(
                             player === it
                     ) {
                         it.start()
+                        if (answer) {
+                            timing = timing.audio(android.os.SystemClock.elapsedRealtime())
+                            speechProvider = provider
+                        }
                         status = "Speaking…"
                     } else if (cont.isActive) cont.cancel()
                 }

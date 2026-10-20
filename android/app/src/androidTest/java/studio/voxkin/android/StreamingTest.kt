@@ -39,6 +39,67 @@ class StreamingTest {
         }
     }
 
+    @Test fun previewDoesNotFillPriorAnswerTimingOrProvider() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        lateinit var model: VoiceModel
+        val before = TurnTiming().sent(100).final(200)
+        instrumentation.runOnMainSync {
+            model = VoiceModel(ApplicationProvider.getApplicationContext<Application>(), false)
+            state(model, "connected", true)
+            state(model, "gatewaySpeechAvailable", true)
+            state(model, "speechProvider", "prior-answer")
+            state(model, "timing", before)
+            model.speechConsent = true
+            state(model, "speechSource", "gateway")
+            val wav = java.nio.ByteBuffer.allocate(4844).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            wav.put("RIFF".toByteArray()).putInt(4836).put("WAVEfmt ".toByteArray())
+            wav.putInt(16).putShort(1).putShort(1).putInt(24000).putInt(48000)
+            wav.putShort(2).putShort(16).put("data".toByteArray()).putInt(4800)
+            VoiceModel::class.java.getDeclaredField("transport").apply { isAccessible = true }.set(model,
+                object : Transport {
+                    override suspend fun request(method: String, params: JSONObject) = obj(
+                        "provider" to "synthetic-preview", "mimeType" to "audio/wav",
+                        "audioBase64" to java.util.Base64.getEncoder().encodeToString(wav.array()))
+                    override fun close() {}
+                })
+            model.previewVoice()
+        }
+        try {
+            val deadline = android.os.SystemClock.elapsedRealtime() + 5000
+            var playing = true
+            while (playing && android.os.SystemClock.elapsedRealtime() < deadline) {
+                Thread.sleep(50)
+                instrumentation.runOnMainSync { playing = model.speaking }
+            }
+            instrumentation.runOnMainSync {
+                assertFalse(model.speaking)
+                assertEquals("Reply ready.", model.status)
+                assertEquals(before, model.timing)
+                assertEquals("prior-answer", model.speechProvider)
+            }
+        } finally { instrumentation.runOnMainSync { model.disconnect() } }
+    }
+
+    @Test fun timingAcceptsOnlyCurrentVisibleEventsAndClearsOnDisconnect() = fixture { model, emit ->
+        state(model, "timing", TurnTiming().sent(android.os.SystemClock.elapsedRealtime()))
+        emit(obj("state" to "delta", "runId" to "other", "deltaText" to "Wrong"))
+        emit(obj("state" to "delta", "phase" to "analysis", "deltaText" to "Private"))
+        emit(obj("state" to "delta", "deltaText" to " "))
+        assertNull(model.timing.firstUpdate)
+        emit(obj("state" to "delta", "deltaText" to "Visible"))
+        assertNotNull(model.timing.firstUpdate)
+        model.speechConsent = false
+        emit(obj("state" to "final", "message" to obj("role" to "assistant", "text" to "Answer")))
+        assertNotNull(model.timing.reply)
+        assertNull(model.timing.firstAudio)
+        val finished = model.timing
+        emit(obj("state" to "final", "message" to obj("role" to "assistant", "text" to "Late")))
+        assertEquals(finished, model.timing)
+        model.disconnect()
+        assertEquals(TurnTiming(), model.timing)
+        assertEquals("", model.speechProvider)
+    }
+
     @Test fun deltasAreTransientBoundedAndFinalReplacesThemWithoutDuplicates() = fixture { model, emit ->
         emit(obj("state" to "status", "phase" to "starting_model"))
         assertEquals("Your agent is thinking…", model.status)

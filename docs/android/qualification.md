@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.9 (11), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `99dfeb6ba54e6f0dfbf20256dfcc788896ef8c83861e7db363bf30f74c47f46e`.
+- Version0.2.10 (12), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `baefad1768eb73790a566bda3f789d58f0676ebda1337d1d906586a2c21998da`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -14,10 +14,10 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Automated evidence
 
-- **39/39 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
+- **42/42 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **65/65 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **67/67 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
@@ -70,8 +70,9 @@ permit typing, never silent cloud transcription. Gateway speech remains opt-in.
 Credentials are Keystore-encrypted and excluded from cloud backup/device transfer.
 Setup links only stage configuration. No replay on reconnect/background return.
 
-This preview has no camera QR scanner, owner guest-administration UI, hands-free
-conversation, automatic owner-conversation naming or Android Auto.
+This preview includes camera QR setup, owner guest-administration UI, hands-free
+conversation and automatic owner-conversation naming; their real-use acceptance
+limitations are recorded below. Android Auto remains outside scope.
 Restricted conversation pages contain up to20, owner pages50 and message pages50;
 explicit pagination can load up to500 conversations/messages per view. iOS CarPlay is unrelated to Android Auto eligibility.
 
@@ -277,3 +278,20 @@ See [parity scope](iphone-parity.md) for features still outside this preview.
   live gateway mutation. Cockpit remains not allowlisted.
 - Real gateway title persistence remains acceptance work; installed handoff restores
   the existing conversation without sending or replaying audio. iOS/gateway unchanged.
+
+## Response diagnostics follow-up (0.2.10)
+
+Last response timing now reports first visible text, complete reply, gateway audio
+preparation/transfer, local playback setup and Send-to-answer-audio. Monotonic
+durations remain in memory and clear at disconnect/new Send. Provider attribution
+changes only when that answer clip starts playback, not when a future chunk is
+prefetched. Previews cannot fill or overwrite answer measurements.
+
+42 JVM and67 Pixel instrumentation tests passed (109 total). New coverage verifies
+first-only measurements, reset/out-of-order guards, wrong-run/private/empty event
+exclusion, disconnect clearing and actual silent preview playback without changing
+an earlier answer's timings/provider. Two old reflection-based tests initially
+failed because the speech method gained an argument; updated call sites and the
+complete67-test rerun passed. Independent read-only review found the preview and
+empty-update cases; both fixed with regression coverage. No live chat/admin/history
+mutation was used for this batch. Dictation-tail/receipt timings are not implemented.

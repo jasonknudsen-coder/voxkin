@@ -470,9 +470,9 @@ class DeviceSmokeTest {
             available.value = true
             VoiceModel::class
                 .java
-                .getDeclaredMethod("speak", String::class.java)
+                .getDeclaredMethod("speak", String::class.java, Boolean::class.javaPrimitiveType)
                 .apply { isAccessible = true }
-                .invoke(model, "Synthetic speech")
+                .invoke(model, "Synthetic speech", true)
         }
         assertTrue(requested.await(3, TimeUnit.SECONDS))
         instrumentation.runOnMainSync { model.stopAudio() }

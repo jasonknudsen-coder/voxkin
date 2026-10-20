@@ -176,8 +176,8 @@ class HandsFreeTest {
                 override fun close() {}
             })
             activate(m)
-            VoiceModel::class.java.getDeclaredMethod("speak", String::class.java)
-                .apply { isAccessible = true }.invoke(m, "Synthetic silent audio")
+            VoiceModel::class.java.getDeclaredMethod("speak", String::class.java, Boolean::class.javaPrimitiveType)
+                .apply { isAccessible = true }.invoke(m, "Synthetic silent audio", true)
         }
         var resumed = false
         try {

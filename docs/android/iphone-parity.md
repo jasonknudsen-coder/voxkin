@@ -27,7 +27,7 @@ This is **core phone presentation parity**, not a claim that every iOS feature
 has shipped on Android. Android uses its own keyboard, permission dialogs,
 accessibility services and on-device recognition implementation.
 
-Still outside this preview: response timing panel, conversational receipt feedback and Android
+Still outside this preview: conversational receipt feedback and Android
 Auto. The iOS CarPlay integration does not automatically confer Android Auto
 support. Returning to the foreground reconnects previously approved saved access and
 restores the scoped conversation without replaying speech or messages.
@@ -73,7 +73,7 @@ Owner archive filtering now explicitly excludes archived sessions, as on iOS.
 
 **Response experience:** chat delta/status streaming is implemented; persisted
 `session.message` commentary/interim updates remain missing. Still no
-no receipt tone or spoken progress option, no response timing/provider panel.
+receipt tone or spoken progress option. Response timing/provider diagnostics are implemented (0.2.10), excluding dictation-tail and receipt-cue timings.
 Reply display is plain text, not formatted Markdown. Speech now applies inline Markdown and punctuation cleanup; the
 short-first-chunk and one-next-prefetch pipeline is now implemented. Android currently
 speaks bounded chunks for longer replies while iOS limits speech to4,000characters.
@@ -291,3 +291,12 @@ management and the other explicit platform/experience differences above.
 - Restricted server-generated history metadata remains unchanged. Granular gating
   for other history operations, commentary/progress/timing, Markdown display and
   haptics remain parity work; full iPhone parity is not claimed.
+
+## Response timing/provider follow-up (0.2.10)
+
+In-memory monotonic first-update/final/audio timings and actual-playing provider
+attribution now appear in Settings. Empty/private/wrong-run events do not count;
+preview speech and later chunks do not overwrite first-answer measurements.
+42 JVM +67 Pixel tests passed. Read-only review found two edge cases, both fixed.
+This closes answer diagnostics, not receipt feedback, persisted commentary,
+Markdown rendering, haptics or the remaining granular capability gates.
