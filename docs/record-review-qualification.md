@@ -18,3 +18,7 @@ Ordinary phone recording now follows record → stop/review → send. Microphone
 ## Remaining physical acceptance
 
 Use the new candidate on a real phone: microphone permission/opening, English and Spanish final words, stop/edit/send, cancel/re-record, VoiceOver, and interruption/backgrounding. Confirm the listening indicator is obvious in actual use. Simulator capture is synthetic and does not establish real microphone or vehicle performance. The separate reported CarPlay loudness issue is not addressed here.
+
+## App Store submission — October 20, 2026
+
+Version 1.0 / build 14 submitted under owner authorization. Independent Apple readback confirms WAITING_FOR_REVIEW with exactly one matching app-version item and AFTER_APPROVAL release behavior. Content Rights is set to no third-party content based on the current client functionality. Isolated review service restored and public HTTPS enrollment, model reply, and English/Spanish speech reverified before submission. Not yet approved or publicly released.
