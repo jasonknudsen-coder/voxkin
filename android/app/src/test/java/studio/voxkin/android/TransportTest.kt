@@ -140,6 +140,34 @@ class TransportTest {
         }
     }
 
+    @Test fun ownerPairingErrorsRetainOnlyCanonicalIdWithoutRetry() = fixture { server, client, url ->
+        runBlocking {
+            val id = "7a56aa63-090b-48bf-a317-51c05201d72d"
+            val frames = java.util.concurrent.atomic.AtomicInteger()
+            server.enqueue(MockResponse().withWebSocketUpgrade(object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    webSocket.send(obj("type" to "event", "event" to "connect.challenge", "payload" to obj("nonce" to "test", "ts" to 1234)).toString())
+                }
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    frames.incrementAndGet()
+                    val request = JSONObject(text)
+                    assertEquals("connect", request.getString("method"))
+                    webSocket.send(obj("type" to "res", "id" to request.getString("id"), "ok" to false,
+                        "error" to obj("code" to "PAIRING_REQUIRED", "message" to "SECRET-DO-NOT-DISPLAY", "details" to obj("requestId" to id))).toString())
+                }
+            }))
+            val t = OwnerTransport({ _, _ -> }, {})
+            t.client = client
+            try {
+                val error = runCatching { t.connect(url, Identity(ByteArray(32) { it.toByte() }), "synthetic") }.exceptionOrNull()
+                assertTrue(error is GatewayPairingRequired)
+                assertEquals("openclaw devices approve $id", (error as GatewayPairingRequired).approvalCommand)
+                assertFalse(error.message!!.contains("SECRET"))
+                assertEquals(1, frames.get()); assertEquals(1, server.requestCount)
+            } finally { t.close() }
+        }
+    }
+
     @Test fun ownerHandshakeUsesAndroidIdentityAndHasNoReplay() = ownerHandshake(false)
     @Test fun adminScopeIsRequestedOnlyWhenExplicitAndReadWriteFallbackStillConnects() = ownerHandshake(true)
     private fun ownerHandshake(admin: Boolean) = fixture { server, client, url ->

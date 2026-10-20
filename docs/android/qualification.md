@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.14 (16), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `0143763a73a1ad091dca12bc8c0f24b618d6c7039b37043fbb008f63c5223db2`.
+- Version0.2.15 (17), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `9dc1545caec9fa78ed540a249c75fc8e3ab9f0fb78d7f066142d7ef7e0825107`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -14,10 +14,10 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Automated evidence
 
-- **59/59 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
+- **62/62 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **90/90 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **94/94 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
@@ -358,3 +358,17 @@ Pixel Talk screenshot visually inspected: bold, italic, strike and code are visi
 with user/progress delimiters preserved. History fixture initially lacked connected
 state; corrected the fixture and reran the full90-test suite successfully. Pairing
 approval details and haptics continue next; full parity/human acceptance not claimed.
+
+## Pairing approval detail follow-up (0.2.15)
+
+62 JVM +94 Pixel tests passed (156 total); lint0errors20warnings2hints. Typed pairing
+errors retain only canonical UUIDs and fixed display text. Missing details-code
+falls back to the top-level code. Malformed IDs get generic list/approve guidance,
+not interpolated commands. No server error prose is displayed.
+
+Pending state survives backgrounding, blocks automatic reconnect, and retains saved
+credentials/identity. Explicit retry, endpoint/mode/setup changes and Forget clear
+it. Mocked TLS exercises the actual serialized handshake failure with one request,
+no approval/retry. Device tests cover lifecycle/storage and manual retry clearing;
+the latter deliberately fails locally, not a successful live reconnect claim.
+Selectable command panel screenshot inspected; no approval commands executed.

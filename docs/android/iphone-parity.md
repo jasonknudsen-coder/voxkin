@@ -86,7 +86,7 @@ Send without speech consent; iOS requires its speech-policy acceptance before Se
 These differences must not be hidden behind identical-looking controls.
 
 **Setup/management:** camera QR setup is implemented (0.2.7); owner invite/approve/revoke/cancel UI and persistent restricted-phone ID are implemented (0.2.8).
-Pairing-request detail UI still needs iPhone alignment.
+Pairing-request details and manual approval retry are implemented (0.2.15), with canonical-ID-only commands and no background retry.
 Forget removes credentials but currently retains address/voice preferences, unlike
 iOS; do not describe it as erasing every setting. Android Auto remains separate.
 
@@ -364,3 +364,13 @@ keep the Swift-derived whitespace/annotation fixtures on dependency upgrades.
 Read-only review caught nested image-alt links/styles; fixed with regression
 coverage. This closes inline display, not full Markdown block/table rendering.
 Pairing approval details, haptics and real human acceptance remain separate work.
+
+## Pairing approval follow-up (0.2.15)
+
+The owner connection now distinguishes pairing-required responses from ordinary
+failures, retaining only a validated request UUID. Settings shows selectable list/
+approve instructions, permissions cautions, saved-credential retention and manual
+Retry. Invalid IDs use a fixed REQUEST_ID placeholder. Background/foreground does
+not retry pending approval; explicit retry/context changes clear stale state.
+62 JVM +94 Pixel tests passed, including mocked TLS and no-network device lifecycle
+checks. Successful live approval/reconnect remains human acceptance, not claimed.

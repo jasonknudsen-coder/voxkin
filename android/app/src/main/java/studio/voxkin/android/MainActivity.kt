@@ -1115,12 +1115,7 @@ private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
                 Text("Restricted guest access", Modifier.weight(1f), fontSize = 16.sp)
                 Switch(
                     checked = m.restricted,
-                    onCheckedChange = {
-                        m.chooseRequestAdmin(false)
-                        m.restricted = it
-                        m.token = ""
-                        m.invitation = ""
-                    },
+                    onCheckedChange = { m.chooseRestrictedMode(it) },
                     enabled = !m.connected && !m.busy,
                 )
             }
@@ -1179,6 +1174,20 @@ private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
                 if (m.connected || m.busy) m.disconnect() else m.connect()
             }
             GroupText(m.status)
+        }
+        m.pairingApproval?.let { approval ->
+            GroupSection("Gateway approval required") {
+                GroupText("Waiting for gateway approval. This phone reached the gateway. The owner must verify this device and its requested permissions before approving it.")
+                SelectionContainer { Text("openclaw devices list", Modifier.padding(16.dp), fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace) }
+                approval.approvalCommand?.let { command ->
+                    SelectionContainer { Text(command, Modifier.padding(16.dp), fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace) }
+                } ?: run {
+                    GroupText("Use the request ID shown by the device list to approve this phone.")
+                    SelectionContainer { Text("openclaw devices approve REQUEST_ID", Modifier.padding(16.dp), fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace) }
+                }
+                GroupText("Approval is required even without management permission. Pending requests may retain previously requested permissions. Your saved credential is kept.")
+                GroupAction("Retry connection", enabled = !m.busy) { m.connect() }
+            }
         }
         if (m.canManageAccess) AccessPanel(m)
         if (m.connected && m.agents.isNotEmpty())

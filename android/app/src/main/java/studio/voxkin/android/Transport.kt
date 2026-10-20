@@ -14,7 +14,7 @@ import okio.ByteString
 import org.json.JSONArray
 import org.json.JSONObject
 
-class GatewayFailure(message: String) : IOException(message)
+open class GatewayFailure(message: String) : IOException(message)
 
 interface Transport {
     suspend fun request(method: String, params: JSONObject = obj()): JSONObject
@@ -114,17 +114,7 @@ class OwnerTransport(
                 pending.remove(f.optString("id"))?.let { p ->
                     if (f.optBoolean("ok")) p.complete(f.optJSONObject("payload") ?: obj())
                     else {
-                        val e = f.optJSONObject("error")
-                        val code =
-                            e?.optJSONObject("details")?.optString("code") ?: e?.optString("code")
-                        p.completeExceptionally(
-                            GatewayFailure(
-                                if (code in listOf("PAIRING_REQUIRED", "NOT_PAIRED"))
-                                    "Approve this phone in the gateway device list, then reconnect."
-                                else
-                                    "Gateway rejected request. Check access and method support. Nothing was replayed."
-                            )
-                        )
+                        p.completeExceptionally(GatewayErrors.owner(f.optJSONObject("error")))
                     }
                 }
         } catch (_: Exception) {

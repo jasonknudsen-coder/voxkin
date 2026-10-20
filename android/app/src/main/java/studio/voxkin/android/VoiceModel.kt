@@ -40,6 +40,8 @@ class VoiceModel @JvmOverloads constructor(
     var restricted by mutableStateOf(store.get("lastMode") == "restricted")
     var status by
         mutableStateOf("Connect to your own gateway. Tailscale must be connected separately.")
+    var pairingApproval by mutableStateOf<GatewayPairingRequired?>(null)
+        private set
     var connected by mutableStateOf(false)
         private set
 
@@ -265,6 +267,7 @@ class VoiceModel @JvmOverloads constructor(
     fun updateGateway(value: String) {
         if (connected || busy) return
         if (value != gateway) {
+            pairingApproval = null
             requestAdmin = false
             token = ""
             invitation = ""
@@ -272,6 +275,17 @@ class VoiceModel @JvmOverloads constructor(
             automaticConnectionSuppressed = true
         }
         gateway = value
+    }
+
+    fun chooseRestrictedMode(value: Boolean) {
+        if (connected || busy || value == restricted) return
+        chooseRequestAdmin(false)
+        pairingApproval = null
+        restricted = value
+        token = ""
+        invitation = ""
+        draft = ""
+        automaticConnectionSuppressed = true
     }
 
     fun chooseLanguage(value: String) {
@@ -662,17 +676,21 @@ class VoiceModel @JvmOverloads constructor(
                     throw e
                 } catch (e: Exception) {
                     if (current == generation) {
-                        transport?.close()
-                        transport = null
-                        connected = false
-                        status =
-                            if (e is GatewayFailure) e.message ?: "Connection failed"
-                            else "Unable to connect. Check URL, token and gateway support."
+                        connectionFailed(e)
                     }
                 } finally {
                     if (current == generation) busy = false
                 }
             }
+    }
+
+    internal fun connectionFailed(error: Exception) {
+        transport?.close()
+        transport = null
+        connected = false
+        pairingApproval = error as? GatewayPairingRequired
+        status = if (error is GatewayFailure) error.message ?: "Connection failed"
+            else "Unable to connect. Check URL, token and gateway support."
     }
 
     val enrolledPhoneId: String get() = if (restricted) store.get("phone-id:${credentialKey()}").orEmpty() else ""
@@ -715,6 +733,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun disconnect(allowResume: Boolean = false) {
+        pairingApproval = null
         clearAccess()
         progressSubscriptionAvailable = false
         subscriptionGeneration++
@@ -763,8 +782,11 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     fun background() {
+        val approval = pairingApproval
         endHandsFree()
         disconnect(allowResume = true)
+        pairingApproval = approval
+        if (approval != null) status = approval.message.orEmpty()
     }
 
     fun foreground() {
@@ -772,7 +794,7 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     internal fun canReconnect(): Boolean {
-        if (!automaticConnection || automaticConnectionSuppressed || scannedSetup != null || connected || busy ||
+        if (pairingApproval != null || !automaticConnection || automaticConnectionSuppressed || scannedSetup != null || connected || busy ||
             token.isNotBlank() || invitation.isNotBlank()) return false
         val endpoint = runCatching { Protocol.endpoint(gateway, restricted).toString() }.getOrNull() ?: return false
         return endpoint == gateway && store.get("resume:${credentialKey()}") == "true" &&

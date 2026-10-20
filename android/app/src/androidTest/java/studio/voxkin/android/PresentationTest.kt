@@ -63,6 +63,21 @@ class PresentationTest {
         ui.runOnIdle { assertEquals(rows, model().messages) }
     }
 
+    @Test fun pairingPanelShowsOnlySafeCommandsAndManualRetry() {
+        val id = "7a56aa63-090b-48bf-a317-51c05201d72d"
+        ui.runOnIdle { model().connectionFailed(GatewayPairingRequired(id)); model().page = 2 }
+        ui.onNodeWithText("Gateway approval required", ignoreCase = true).performScrollTo().assertIsDisplayed()
+        ui.onNodeWithText("openclaw devices list").performScrollTo().assertIsDisplayed()
+        ui.onNodeWithText("openclaw devices approve $id").performScrollTo().assertIsDisplayed()
+        capture("pairing-approval")
+        ui.onNodeWithText("Retry connection").performScrollTo().assertIsEnabled()
+        ui.runOnIdle { flag(model(), "busy", true) }
+        ui.onNodeWithText("Retry connection").assertIsNotEnabled()
+        ui.runOnIdle { flag(model(), "busy", false); model().connectionFailed(GatewayPairingRequired("SECRET; shell")) }
+        ui.onNodeWithText("Use the request ID shown by the device list to approve this phone.").performScrollTo().assertIsDisplayed()
+        ui.onNodeWithText("SECRET", substring = true).assertDoesNotExist()
+    }
+
     @Test fun invitationQrProtectsWindowAndHidingClearsProtection() {
         ui.runOnIdle {
             val m = model()
