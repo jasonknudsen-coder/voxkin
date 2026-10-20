@@ -72,7 +72,7 @@ Automatic stable owner titles and missing-preview enrichment are implemented (0.
 Owner archive filtering now explicitly excludes archived sessions, as on iOS.
 
 **Response experience:** chat delta/status streaming is implemented; persisted
-`session.message` commentary/interim updates remain missing. Still no
+`session.message` commentary/interim updates and optional owner subscriptions are implemented (0.2.12). Still no
 receipt tone or spoken progress option. Response timing/provider diagnostics are implemented (0.2.10), excluding dictation-tail and receipt-cue timings.
 Reply display is plain text, not formatted Markdown. Speech now applies inline Markdown and punctuation cleanup; the
 short-first-chunk and one-next-prefetch pipeline is now implemented. Android currently
@@ -309,3 +309,20 @@ explanations; owner Talk remains usable without history reading. Mutations rejec
 stale cross-agent/malformed targets, and reconnect dismisses pending dialogs.
 46 JVM +72 Pixel tests passed. Remaining response work: persisted commentary,
 receipt/spoken progress, Markdown rendering and haptics; pairing detail UI also remains.
+
+## Persisted progress follow-up (0.2.12)
+
+Explicit public commentary is shown only during the matching active run/session,
+separate from transcript history and final speech. Strict phase/signature/mirror/
+segment validation rejects private, terminal, error, malformed and mixed content.
+Message/segment dedupe and 100-ID, 4k-notice, 12k-notices, 16k-combined bounds apply.
+Final, error, cancellation and disconnect clear transient notices.
+
+Optional owner subscriptions run independently from Send and busy state, with
+connection/transport/session/generation guards. Switching A→B→A invalidates the
+old successful subscription before replacing it. Unsupported/restricted gateways
+retain delta/final behavior. Failures retry only on later context changes or Send.
+
+Synthetic parser and Pixel lifecycle tests cover these contracts; real gateway
+commentary and acoustic acceptance remain separate. Receipt/spoken progress,
+Markdown display, haptics and pairing detail UI remain unfinished.

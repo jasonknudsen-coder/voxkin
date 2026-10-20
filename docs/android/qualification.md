@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.11 (13), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `100faf42cd026703284e59f1bc89b069011952d1f0e0fa0ac4ddd3fd8c62c821`.
+- Version0.2.12 (14), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `3818ece5be292b3d1d286842d3ae898aaa5468e66d36069a9182faa44c1cd6f1`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -14,10 +14,10 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Automated evidence
 
-- **46/46 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
+- **50/50 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **72/72 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **75/75 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
@@ -314,3 +314,15 @@ UI and same-context reconnect dismissal. One old deletion fixture used a non-UUI
 expected session ID; corrected to a valid synthetic UUID and full suite reran green.
 Independent read-only review found no blocker; recommended epoch-keyed dialogs,
 implemented and UI-tested. No live history/admin changes were made.
+
+## Persisted commentary/subscription follow-up (0.2.12)
+
+50 JVM +75 Pixel tests passed (125 total); lint:0errors20warnings2hints.
+Strict persisted-commentary parser, bounded dedupe/accumulator, transient combined
+display and optional nonblocking owner subscriptions are implemented. Device tests
+exercise Send during a hanging subscription, A→B→A replacement, disconnect and
+final/cancel late events. Static independent review identified the stale successful
+subscription edge; fixed and regression-tested, with no remaining review blocker.
+No live chat sends, history mutations or audio were used for qualification.
+Real commentary wire delivery and audio acceptance are not claimed by these fixtures.
+Receipt/spoken feedback and remaining presentation parity continue next.

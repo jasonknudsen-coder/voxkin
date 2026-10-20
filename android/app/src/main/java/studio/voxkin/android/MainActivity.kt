@@ -323,9 +323,9 @@ private fun TalkPage(m: VoiceModel) {
             }
             latestUser?.let { MessageCard(it, false) }
             latestAgent?.let { MessageCard(it, true) }
-            if (m.requestPending && m.streamingText.isNotBlank()) {
+            if (m.requestPending && m.pendingText.isNotBlank()) {
                 Text("Reply in progress", color = VoxkinBrand.secondary, fontSize = 12.sp)
-                MessageCard(ChatLine("assistant", m.streamingText), true)
+                MessageCard(ChatLine("assistant", m.pendingText), true)
             }
         }
         TalkControls(

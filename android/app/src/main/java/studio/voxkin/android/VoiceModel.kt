@@ -95,6 +95,10 @@ class VoiceModel @JvmOverloads constructor(
         private set
     var speechProvider by mutableStateOf("")
         private set
+    private val progressNotices = ProgressNotices()
+    var progressText by mutableStateOf("")
+        private set
+    val pendingText: String get() = HistoryMetadata.clip(listOf(progressText, streamingText).filter { it.isNotBlank() }.joinToString("\n\n"), 16000)
     var streamingText by mutableStateOf("")
         private set
 
@@ -156,6 +160,11 @@ class VoiceModel @JvmOverloads constructor(
     private val historyIdle get() = connected && !busy && !recording && !settling
     fun canRename(c: Conversation) = historyIdle && historyCapabilities.rename && validHistoryTarget(c)
     fun canDelete(c: Conversation) = historyIdle && historyCapabilities.delete && validHistoryTarget(c)
+    private var progressSubscriptionAvailable = false
+    private var subscriptionJob: Job? = null
+    private var subscriptionTarget: String? = null
+    private var subscribedSession: String? = null
+    private var subscriptionGeneration = 0
     private var historyPreviewAvailable = false
     private var historyAutoLabelAvailable = false
     private var localVoice = false
@@ -572,6 +581,7 @@ class VoiceModel @JvmOverloads constructor(
                         val grant = h.optJSONObject("auth")?.optString("deviceToken").orEmpty()
                         store.put(key, grant.ifBlank { secret })
                         val methods = h.optJSONObject("features")?.strings("methods").orEmpty()
+                        progressSubscriptionAvailable = "sessions.messages.subscribe" in methods
                         historyCapabilities = HistoryCapabilities.owner(methods)
                         supportsAccessManagement = methods.containsAll(AccessPolicy.methods)
                         historyPreviewAvailable = methods.contains("sessions.preview")
@@ -598,6 +608,7 @@ class VoiceModel @JvmOverloads constructor(
                     speechConsent = store.get("speech-consent:${gateway.trim()}") == "true"
                     status = "Connected. Tap Record or type a message."
                     restoreConversation()
+                    subscribeProgress()
                     store.put("resume:${credentialKey()}", "true")
                     if (localVoice)
                         runCatching { transport!!.request("voxkin.catalog") }
@@ -676,6 +687,12 @@ class VoiceModel @JvmOverloads constructor(
 
     fun disconnect(allowResume: Boolean = false) {
         clearAccess()
+        progressSubscriptionAvailable = false
+        subscriptionGeneration++
+        subscriptionJob?.cancel()
+        subscriptionJob = null
+        subscriptionTarget = null
+        subscribedSession = null
         historyCapabilities = HistoryCapabilities()
         historyPreviewAvailable = false
         historyAutoLabelAvailable = false
@@ -692,7 +709,7 @@ class VoiceModel @JvmOverloads constructor(
         scopeJob?.cancel()
         turnJob?.cancel()
         activeRun = null
-        streamingText = ""
+        clearProgress()
         timing = TurnTiming()
         speechProvider = ""
         transport?.close()
@@ -739,6 +756,7 @@ class VoiceModel @JvmOverloads constructor(
         saved.put(agent, sessionId)
         store.put(key, saved.toString())
         store.put("agent:${credentialKey()}", agent)
+        subscribeProgress()
     }
 
     private fun resetMessagePage() {
@@ -882,6 +900,35 @@ class VoiceModel @JvmOverloads constructor(
             historyOffset = 0
             draft = ""
             restoreConversation()
+            subscribeProgress()
+        }
+    }
+
+    private fun clearProgress() {
+        streamingText = ""
+        progressNotices.clear()
+        progressText = ""
+    }
+
+    private fun subscribeProgress() {
+        if (!connected || restricted || !conversationReady || !progressSubscriptionAvailable) return
+        val t = transport ?: return
+        val target = session
+        if (subscribedSession == target || (subscriptionTarget == target && subscriptionJob?.isActive == true)) return
+        subscriptionJob?.cancel()
+        subscribedSession = null
+        val epoch = ++subscriptionGeneration
+        val connection = generation
+        val selectedAgent = agent
+        subscriptionTarget = target
+        subscriptionJob = viewModelScope.launch {
+            try {
+                t.request("sessions.messages.subscribe", obj("key" to target, "agentId" to selectedAgent, "subscriptionId" to "voxkin"))
+                if (epoch == subscriptionGeneration && connection == generation && transport === t && connected && session == target)
+                    subscribedSession = target
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { /* Optional: retry on later Send or context change. */ }
+            finally { if (epoch == subscriptionGeneration) subscriptionTarget = null }
         }
     }
 
@@ -897,6 +944,7 @@ class VoiceModel @JvmOverloads constructor(
             return
         }
         val t = transport ?: return
+        subscribeProgress()
         val requestText = replyLength.requestText(text, language)
         stopAudio(endHandsFree = false)
         val current = generation
@@ -904,7 +952,7 @@ class VoiceModel @JvmOverloads constructor(
         activeRun = run
         timing = TurnTiming().sent(android.os.SystemClock.elapsedRealtime())
         speechProvider = ""
-        streamingText = ""
+        clearProgress()
         busy = true
         resetMessagePage() // A new turn shifts offset-based history; refresh before loading older pages.
         status = "Waiting for reply…"
@@ -939,7 +987,7 @@ class VoiceModel @JvmOverloads constructor(
                 } catch (e: CancellationException) {
                     if (current == generation && activeRun != null) {
                         activeRun = null
-                        streamingText = ""
+                        clearProgress()
                         busy = false
                         handsFree.stop()
                         status = "Turn stopped or timed out; nothing was replayed."
@@ -947,7 +995,7 @@ class VoiceModel @JvmOverloads constructor(
                 } catch (e: Exception) {
                     if (current == generation) {
                         activeRun = null
-                        streamingText = ""
+                        clearProgress()
                         busy = false
                         handsFree.stop()
                         status =
@@ -959,6 +1007,14 @@ class VoiceModel @JvmOverloads constructor(
     }
 
     private fun event(name: String, p: JSONObject) {
+        if (name == "session.message") {
+            if (connected && !restricted && progressSubscriptionAvailable && progressNotices.accept(p, session, activeRun)) {
+                progressText = progressNotices.display("")
+                timing = timing.update(android.os.SystemClock.elapsedRealtime())
+                status = "Your agent is working…"
+            }
+            return
+        }
         if (
             name != "chat" ||
                 p.optString("runId") != activeRun ||
@@ -993,7 +1049,7 @@ class VoiceModel @JvmOverloads constructor(
             "final" -> {
                 timing = timing.final(android.os.SystemClock.elapsedRealtime())
                 activeRun = null
-                streamingText = ""
+                clearProgress()
                 busy = false
                 val text = p.optJSONObject("message")?.let { Protocol.finalText(it) }.orEmpty()
                 if (text.isNotBlank()) {
@@ -1008,7 +1064,7 @@ class VoiceModel @JvmOverloads constructor(
             "error",
             "aborted" -> {
                 activeRun = null
-                streamingText = ""
+                clearProgress()
                 busy = false
                 handsFree.stop()
                 status = "Turn ended without a reply. Nothing was replayed."
@@ -1020,7 +1076,7 @@ class VoiceModel @JvmOverloads constructor(
         val run = activeRun
         val t = transport
         activeRun = null
-        streamingText = ""
+        clearProgress()
         turnJob?.cancel()
         if (run != null) busy = false
         stopAudio()
@@ -1667,6 +1723,8 @@ class VoiceModel @JvmOverloads constructor(
                 saved.remove(agent)
                 store.put(key, saved.toString())
                 conversationReady = true
+                clearProgress()
+                subscribeProgress()
             }
             conversations = conversations.filter { it.id != c.id }
             // Deletion invalidates both owner offsets and restricted before cursors.
