@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.8 (10), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `a4c4090ac9b41d0270ce567007bf7053b232c4ad9e7513a4a1d5fd40e8df9b5b`.
+- Version0.2.9 (11), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `99dfeb6ba54e6f0dfbf20256dfcc788896ef8c83861e7db363bf30f74c47f46e`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -14,10 +14,10 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Automated evidence
 
-- **30/30 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
+- **39/39 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **63/63 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **65/65 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
@@ -258,3 +258,22 @@ See [parity scope](iphone-parity.md) for features still outside this preview.
   reran build/lint. Final APK includes the authenticated-hello ID recovery and the
   complete device suite was repeated after that change. Test package removed; saved
   owner conversation restored on Talk without Send/audio. No iOS/gateway/store change.
+
+
+## Automatic history metadata follow-up (0.2.9)
+
+- 39 JVM +65 Pixel tests passed (104 total), lint0errors/20warnings/1hint.
+- New deterministic tests cover iPhone-style greeting/topic choice, wrapper cleaning,
+  safe Unicode limits, manual/stable exclusions, wrong-key rejection, missing/failed
+  preview and patch capabilities, exact expected session identity, two-user threshold,
+  context cancellation, reasoning exclusion, bounded truncated-wrapper fallback,
+  and the50-row/two-preview/four-fallback request budget.
+- On-device model tests exercise list→preview→expected-session patch using synthetic
+  data, verify resulting title/preview, and verify missing capability makes only the
+  original list request with a nonblank fallback title. Existing UI/history/voice/
+  access tests rerun unchanged; no live history list/patch performed for this batch.
+- Independent source reviewer identified title fallback/Unicode and wrapper-counting
+  issues; addressed and regression-tested by the lead. No code-writing helper or
+  live gateway mutation. Cockpit remains not allowlisted.
+- Real gateway title persistence remains acceptance work; installed handoff restores
+  the existing conversation without sending or replaying audio. iOS/gateway unchanged.

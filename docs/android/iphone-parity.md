@@ -27,8 +27,7 @@ This is **core phone presentation parity**, not a claim that every iOS feature
 has shipped on Android. Android uses its own keyboard, permission dialogs,
 accessibility services and on-device recognition implementation.
 
-Still outside this preview: automatic owner-conversation titles,
-response timing panel, conversational receipt feedback and Android
+Still outside this preview: response timing panel, conversational receipt feedback and Android
 Auto. The iOS CarPlay integration does not automatically confer Android Auto
 support. Returning to the foreground reconnects previously approved saved access and
 restores the scoped conversation without replaying speech or messages.
@@ -69,8 +68,7 @@ This is a source audit plus bounded device tests, not a full parity declaration.
 **Conversation continuity:** reconnect now restores the last authorized conversation
 per endpoint/access mode/agent. Gateway-provided timestamps/previews, current-row
 marker, conversation pagination and older-message loading are implemented.
-Automatic stable owner-conversation naming and synthesized owner previews remain
-missing. History capabilities are not yet independently gated per method.
+Automatic stable owner titles and missing-preview enrichment are implemented (0.2.9). History capabilities are not yet independently gated per method.
 Owner archive filtering now explicitly excludes archived sessions, as on iOS.
 
 **Response experience:** chat delta/status streaming is implemented; persisted
@@ -269,3 +267,27 @@ management and the other explicit platform/experience differences above.
   Cockpit remains not allowlisted; no control-plane changes.
 - Real admin grant acquisition and owner/guest access lifecycle acceptance remain
   separate from synthetic protocol/model/UI coverage. Full iPhone parity unfinished.
+
+
+## Automatic history metadata (0.2.9, 2026-10-20)
+
+- Local title rules match the iPhone reference: clean exact reply-preference wrappers,
+  collapse whitespace, consider the first three user messages, skip greetings/tests
+  when a real topic exists, bound generated titles to80 Unicode code points.
+- Manual label/customTitle and existing nonempty autoLabel are never fetched for
+  renaming or overwritten. Only owned listed session keys enter preview requests.
+  Latest visible text can fill a missing preview; tool/reasoning content is excluded.
+- Android's50-row owner pages use at most two preview calls (32-key schema limit),
+  eight items/800characters each. At most four32KB/eight-message fallback history
+  reads handle truncated preference wrappers. Unavailable/failed enrichment retains
+  the original safe list metadata; incomplete wrappers never become titles.
+- Persist autoLabel only after two cleaned nonblank visible user messages, a
+  nontrivial topic, advertised sessions.patch, and a valid expectedSessionId. Every
+  request/result checks cancellation and current connection/agent; never auto-retry
+  a failed patch. A request already sent can still finish server-side after cancel.
+- Read-only review identified empty-title/Unicode clipping and incomplete-wrapper
+  counting edges; fixed with regression tests. Parent verified final changes.
+  No live history renaming was performed during QA; transport fixtures are synthetic.
+- Restricted server-generated history metadata remains unchanged. Granular gating
+  for other history operations, commentary/progress/timing, Markdown display and
+  haptics remain parity work; full iPhone parity is not claimed.

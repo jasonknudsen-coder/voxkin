@@ -37,6 +37,46 @@ class HistoryPagingTest {
         }
     }
 
+    @Test fun ownerMetadataCapabilitiesEnrichAndPersistOnlyScopedTopic() = fixture(false) { model, install ->
+        val id = UUID.randomUUID().toString()
+        val key = "agent:main:voxkin:$id"
+        for (name in listOf("historyPreviewAvailable", "historyAutoLabelAvailable"))
+            VoiceModel::class.java.getDeclaredField(name).apply { isAccessible = true }.setBoolean(model, true)
+        val calls = mutableListOf<String>()
+        install { method, params ->
+            calls += method
+            when (method) {
+                "sessions.list" -> obj("sessions" to JSONArray(listOf(obj("key" to key, "sessionId" to id))))
+                "sessions.preview" -> {
+                    assertEquals(listOf(key), params.strings("keys"))
+                    obj("previews" to JSONArray(listOf(obj("key" to key, "status" to "ok", "items" to JSONArray(listOf(
+                        obj("role" to "user", "text" to "Hola"), obj("role" to "user", "text" to "Plan a picnic"), obj("role" to "assistant", "text" to "Bring sandwiches")
+                    ))))))
+                }
+                "sessions.patch" -> { assertEquals(id, params.getString("expectedSessionId")); assertEquals(key, params.getString("key")); obj() }
+                else -> error("Unexpected method")
+            }
+        }
+        model.listHistory()
+        assertEquals(listOf("sessions.list", "sessions.preview", "sessions.patch"), calls)
+        assertEquals("Plan a picnic", model.conversations.single().title)
+        assertEquals("Bring sandwiches", model.conversations.single().preview)
+        assertFalse(model.busy)
+    }
+
+    @Test fun missingPreviewCapabilityKeepsSafeFallbackTitleWithoutExtraRequests() = fixture(false) { model, install ->
+        val id = UUID.randomUUID().toString()
+        var calls = 0
+        install { method, _ ->
+            calls++
+            assertEquals("sessions.list", method)
+            obj("sessions" to JSONArray(listOf(obj("key" to "agent:main:voxkin:$id", "derivedTitle" to "[Voxkin reply preference truncated..."))))
+        }
+        model.listHistory()
+        assertEquals(1, calls)
+        assertEquals("Conversation", model.conversations.single().title)
+    }
+
     @Test fun restrictedConversationCursorAppendsDedupesAndKeepsMetadata() = fixture(true) { model, install ->
         val a = UUID.randomUUID().toString()
         val b = UUID.randomUUID().toString()

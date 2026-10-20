@@ -80,6 +80,11 @@ History belongs to the gateway, not a vendor-hosted conversation service. Rows s
 timestamps/previews when supplied, and mark the current conversation. Use Load more
 conversations and Load older messages to browse additional pages (up to500 per
 view). Refresh conversation returns to the latest messages without playing audio.
+For unnamed owner conversations, History can derive a title from the first useful
+user messages and fill a missing preview. Manual titles and saved automatic titles
+are preserved. Once there are two visible user messages and a meaningful topic,
+Voxkin saves the automatic title to that exact gateway session when supported.
+This uses local text rules and bounded gateway previews, not another language model.
 After deleting a conversation, refresh History before continuing through pages.
 Delete
 requires confirmation and affects the selected gateway conversation. Forgetting

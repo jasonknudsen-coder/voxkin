@@ -142,6 +142,8 @@ class VoiceModel @JvmOverloads constructor(
     private var focus: AudioFocusRequest? = null
     private val audioManager = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var audioFile: File? = null
+    private var historyPreviewAvailable = false
+    private var historyAutoLabelAvailable = false
     private var localVoice = false
     private val session
         get() = "agent:$agent:voxkin:$sessionId"
@@ -555,6 +557,8 @@ class VoiceModel @JvmOverloads constructor(
                         store.put(key, grant.ifBlank { secret })
                         val methods = h.optJSONObject("features")?.strings("methods").orEmpty()
                         supportsAccessManagement = methods.containsAll(AccessPolicy.methods)
+                        historyPreviewAvailable = methods.contains("sessions.preview")
+                        historyAutoLabelAvailable = methods.contains("sessions.patch")
                         localVoice = methods.contains("voxkin.speak")
                         gatewaySpeechAvailable = methods.contains("tts.speak")
                     }
@@ -655,6 +659,8 @@ class VoiceModel @JvmOverloads constructor(
 
     fun disconnect(allowResume: Boolean = false) {
         clearAccess()
+        historyPreviewAvailable = false
+        historyAutoLabelAvailable = false
         scannedSetup = null
         endHandsFree()
         if (!allowResume) {
@@ -1477,7 +1483,7 @@ class VoiceModel @JvmOverloads constructor(
             currentCoroutineContext().ensureActive()
             if (current != generation || agent != chosenAgent) return@launchHistory
             val rows = r.rows(if (restricted) "conversations" else "sessions")
-            val loaded = rows.mapNotNull { row ->
+            var loaded = rows.mapNotNull { row ->
                     val id = row.optString(if (restricted) "id" else "key")
                     if (
                         if (restricted) runCatching { UUID.fromString(id) }.isFailure
@@ -1490,7 +1496,7 @@ class VoiceModel @JvmOverloads constructor(
                             listOf("label", "customTitle", "autoLabel", "title", "derivedTitle", "displayName")
                                 .map { row.optString(it) }
                                 .firstOrNull { it.isNotBlank() }
-                                ?.let { Protocol.text(obj("role" to "user", "text" to it)) }
+                                ?.let { HistoryMetadata.clip(HistoryMetadata.clean(it), 80).takeIf { title -> title.isNotBlank() } }
                                 ?.takeUnless { it.startsWith("[Voxkin reply preference") }
                                 ?: "Conversation",
                             row.optString("sessionId"),
@@ -1499,6 +1505,14 @@ class VoiceModel @JvmOverloads constructor(
                             row.optLong("updatedAt", 0),
                         )
                 }
+            if (!restricted && historyPreviewAvailable) {
+                val t = transport ?: return@launchHistory
+                loaded = HistoryMetadata.enrich(loaded, rows, chosenAgent, historyAutoLabelAvailable,
+                    current = { generation == current && connected && agent == chosenAgent && transport === t },
+                    request = { method, params -> t.request(method, params) })
+            }
+            currentCoroutineContext().ensureActive()
+            if (current != generation || agent != chosenAgent) return@launchHistory
             val seen = mutableSetOf<String>()
             conversations = (if (more) conversations + loaded else loaded).filter { seen.add(it.id) }.take(500)
             val next = r.optString("nextCursor").takeIf { it.isNotBlank() && it != "null" }
