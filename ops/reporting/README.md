@@ -1,4 +1,4 @@
-# Opt-in report receiver — local candidate, NOT deployed
+# Opt-in report receiver — deployed October20, 2026
 
 This is the only proposed publisher data flow. Normal conversations still go
 directly to the user's gateway. A user must select a response, review/redact it,
@@ -124,3 +124,16 @@ idempotency/conflict, expiration unaffected by duplicate attempts, transient
 rate limiting, and live loopback HTTP status/receipt/body bounds/no read route.
 They use temporary databases and fictional content only. Target-host TLS,
 systemd, Caddy and operator procedures remain deployment qualification work.
+
+## Deployment evidence
+
+Service activated from4234e9e with owner's exact production authorization. Owner
+clarified no Voxkin data/backups; existing backup job covers only app data under
+/opt/game-lab/apps and excludes this separate state directory. Provider snapshots
+and at-rest encryption remain independently unverified; no encryption guarantee
+is made. Private directory/file permissions and dynamic service identity enforce
+local isolation. Host Caddy parses the route; five site assets byte-match, HTTPS
+receipt/duplicate/schema rejection and synthetic triage/deletion/expiration pass.
+Cloudflare is in front: rate limits conservatively apply to proxy peers, not an
+unverified forwarded client header. No global CDN or backup settings changed.
+Owner must assign the human report-review cadence before wider rollout.

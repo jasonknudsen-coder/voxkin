@@ -88,3 +88,17 @@ verified release packaging from unclaimed universal vehicle/audio-route testing.
 All five public routes match approved source bytes over HTTPS; Caddy remains active.
 No DNS, Caddy configuration, gateway or App Store changes. Static text-only edit;
 no new browser layout validation in this pass. Receipt: `.tmp/site-carplay-promotion/receipt.json`.
+
+## October20 Android reporting/privacy activation
+
+Jason supplied exact production authorization; clarified no Voxkin backup set.
+Approved4234e9e static snapshot activated, previous pointer preserved. Isolated
+report receiver enabled under DynamicUser and loopback-only8793; only Voxkin's
+Caddy include changed, full config validates. Five public assets match approved
+source; edge stays healthy. HTTPS201 new and200 duplicate receipts passed, invalid
+allowlist payload rejected400. Synthetic report reviewed/deleted and aged-row
+purge verified on host. No actual customer report read. App remains unsubmitted.
+Live app backup script hashes to repository baseline and does not cover report
+state path. Provider snapshots were not inspected; owner's no-backup confirmation
+is the evidence, not a verified disabled provider setting. No disk-encryption
+claim. Receipt in ignored `.tmp/reporting-deployment/live-receipt.json`.

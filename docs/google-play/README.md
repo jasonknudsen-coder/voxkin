@@ -2,13 +2,13 @@
 
 ## Status
 
-Local preparation complete; **not uploaded, not submitted, not publicly released**.
+Reporting service/privacy deployed and verified; **app not uploaded, not submitted, not publicly released**.
 Play Console organization access verified. `studio.voxkin.android` reports available.
 The create-app form was inspected and name/package entered, but **Create app was not
 clicked** and required policy/export declarations were not attested. No persistent
 Play app record, signing enrollment, tester list, track or release was created.
 
-Google requires in-app offensive AI-output reporting. The Android implementation is locally tested but its endpoint is not live;
+Google requires in-app offensive AI-output reporting. The Android reporting endpoint is deployed and qualified;
 see [reporting proposal](reporting-proposal.md). Do not certify policy compliance
 until this is resolved. Internal testing is not a blanket policy exemption.
 
@@ -66,9 +66,8 @@ Lint:0errors,22warnings,2hints. No clean-lint or Play-review acceptance claim.
 
 ## Remaining before submission
 
-1. Deploy and qualify the approved reporting implementation: HTTPS receipt, authorized triage, deletion, retention and hosting log/backup exclusions. Source/tests are ready; production activation is not authorized.
-2. Publish Android-aware privacy changes. Source changes are staged; the live URL
-   is not claimed updated. Public site deployment remains separately gated.
+1. Reporting is live: HTTPS new/duplicate receipt, invalid-schema rejection, synthetic triage/deletion and aged-row purge passed October20. Owner confirmed no Voxkin backup set; live application backup scope excludes reporting storage.
+2. Android-aware privacy changes are live and byte-matched to approved source.
 3. Confirm publisher review-environment retention, access expiry and model-provider
    processing; create dedicated Play review access and verify Android enrollment,
    conversation, speech and reconnect. Do not repurpose Apple review credentials.
@@ -92,3 +91,5 @@ allowlist or production-approval configuration was changed to bypass it.
 verified fixes for emoji truncation and rotation state. Reporting text is memory-only;
 process termination loses references, so cross-process deduplication is not claimed.
 No Pixel install or real report was submitted. Service/site and Play remain unchanged.
+
+Deployment receipt: `.tmp/reporting-deployment/live-receipt.json`. Runtime storage uses private OS permissions; no independently verified provider disk-encryption claim. Provider backup concern was resolved by owner confirmation, not a provider-console inspection. Cloudflare edge peers share conservative rate-limit buckets; client headers are not trusted. Staffed report-review cadence still needs owner assignment before broader rollout.

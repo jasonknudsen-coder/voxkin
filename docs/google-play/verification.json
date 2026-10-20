@@ -3,7 +3,7 @@
   "package": "studio.voxkin.android",
   "uploaded": false,
   "playAppCreated": false,
-  "publicPrivacyDeployed": false,
+  "publicPrivacyDeployed": true,
   "artifactChecks": {
     "bundletoolValidate": "passed (1.18.3)",
     "aabJarSignature": "signed by release Gradle task; bundletool validate passed",
@@ -85,5 +85,15 @@
       "bytes": 209434,
       "sha256": "da4c197793f5273eca70d7f4ea01e43f0dd233b2fc88749d21d339ce108c4754"
     }
+  ],
+  "reportEndpointDeployed": true,
+  "productionSource": "4234e9ef1f0d89c264bcec23118587028bba95cc",
+  "liveChecks": [
+    "five public source hashes match",
+    "HTTPS201 new report and200 duplicate",
+    "unknown schema400",
+    "host synthetic triage/deletion",
+    "aged-row purge",
+    "edge health"
   ]
 }
