@@ -5,8 +5,8 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 
 ## Artifact and environment
 
-- Version0.2.4 (6), package `studio.voxkin.android`, debug-signed.
-- APK SHA256: `3f6f7f785bb1456da4ad9ed3ca73f9e0a3872e0c2d6b2d4bdcae82c6e715ef64`.
+- Version0.2.5 (7), package `studio.voxkin.android`, debug-signed.
+- APK SHA256: `27aff27eaaf4b7b7993f16ca913f5f94d4a29f40745c810790724795fabf6ed6`.
 - Physical Pixel8a, Android17/API37. Minimum API31, target/compile API36.
 - Existing OpenClaw2026.9.7 gateway and plugin; neither changed for Android.
 - Both English (en-US) and Spanish (es-ES) reported installed by the on-device
@@ -17,7 +17,7 @@ Not a Google Play release, full iOS parity, or universal Android support claim.
 - **20/20 JVM tests:** endpoint/setup validation, Ed25519 signature, final-content
   filtering, speech chunk bounds, real TLS mock owner handshake and restricted
   request/redirect/polling contracts, reply-language/length preferences and unwrapped commands.
-- **31/31 physical-device instrumentation tests:** encrypted credentials; guest/owner
+- **38/38 physical-device instrumentation tests:** encrypted credentials; guest/owner
   Forget isolation; restricted history max20; delete-then-send owned replacement;
   history lock under Stop; delayed synthesis cancellation; capture-context guards;
   fresh/staged setup no automatic connection; foreground restoration without replay or recording; language support probe;
@@ -70,9 +70,9 @@ Credentials are Keystore-encrypted and excluded from cloud backup/device transfe
 Setup links only stage configuration. No replay on reconnect/background return.
 
 This preview has no camera QR scanner, owner guest-administration UI, hands-free
-conversation, automatic owner-conversation naming, pagination or Android Auto.
-Restricted history shows latest20 conversations; owner history latest50; message
-view latest50. iOS CarPlay is unrelated to Android Auto eligibility.
+conversation, automatic owner-conversation naming or Android Auto.
+Restricted conversation pages contain up to20, owner pages50 and message pages50;
+explicit pagination can load up to500 conversations/messages per view. iOS CarPlay is unrelated to Android Auto eligibility.
 
 Private raw device receipts remain ignored outside source. No credentials, host
 addresses, device identifiers or private conversations are included in this report.
@@ -155,3 +155,22 @@ See [parity scope](iphone-parity.md) for features still outside this preview.
   streaming verification used synthetic gateway events on the physical phone.
 - Parent review completed. Independent reviewer failed to start due tool
   authorization errors (one retry); no independent pass is claimed for this batch.
+
+## History metadata and pagination follow-up (0.2.5)
+
+- 20 JVM +38 physical Pixel tests pass (58 total); lint0errors/19warnings.
+- New tests cover restricted cursors, owner raw-row offsets, metadata, deduplication,
+  chronological prepend, preservation of current replies/drafts, refresh from the
+  latest page, nonadvancing cursors, background cancellation, and pagination reset
+  after deletion in both access modes.
+- Synthetic Pixel screenshot inspected: current marker, title, preview, updated
+  time and Load more/Refresh/Load older controls are legible. Test package removed.
+- Independent source review found deletion invalidates pagination; fixed and
+  re-reviewed with no remaining blockers. One finding/accepted recommendation.
+- Full suite passed before a final count-label wording cleanup; final APK assembled
+  and installed afterward. No new live conversations were created or deleted.
+- Full multi-page protocol qualification uses synthetic transports on-device,
+  not newly populated real owner/guest histories. Accessibility/large-text and
+  very large transcript performance remain human acceptance work.
+- Live owner saved pairing/conversation restored; History loaded successfully with
+  updated timestamps visible. Returned to Talk for handoff. Raw device data stays local.

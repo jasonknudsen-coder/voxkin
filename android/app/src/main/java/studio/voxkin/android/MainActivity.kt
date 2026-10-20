@@ -773,12 +773,17 @@ private fun HistoryPage(m: VoiceModel) {
                             .padding(start = 16.dp, end = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            c.title.ifEmpty { "Conversation" },
-                            fontSize = 16.sp,
-                            maxLines = 2,
-                            modifier = Modifier.weight(1f).padding(vertical = 17.dp),
-                        )
+                        Column(Modifier.weight(1f).padding(vertical = 17.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            if (c.id == m.selectedConversationId)
+                                Text("Current conversation", color = VoxkinBrand.cyan, fontSize = 12.sp)
+                            Text(c.title.ifEmpty { "Conversation" }, fontSize = 16.sp, maxLines = 2)
+                            if (c.preview.isNotBlank())
+                                Text(c.preview, color = VoxkinBrand.secondary, fontSize = 13.sp, maxLines = 2)
+                            if (c.updatedAt > 0)
+                                Text("Updated " + java.text.DateFormat.getDateTimeInstance(
+                                    java.text.DateFormat.SHORT, java.text.DateFormat.SHORT
+                                ).format(java.util.Date(c.updatedAt)), color = VoxkinBrand.secondary, fontSize = 12.sp)
+                        }
                         Box {
                             IconButton(
                                 onClick = { menu = true },
@@ -815,6 +820,8 @@ private fun HistoryPage(m: VoiceModel) {
                     }
                 }
             }
+        if (m.connected && m.conversationsHaveMore)
+            GroupAction("Load more conversations", enabled = enabled) { m.listHistory(more = true) }
         if (m.busy)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -825,21 +832,26 @@ private fun HistoryPage(m: VoiceModel) {
             }
         if (m.connected)
             Text(
-                "Latest ${if(m.restricted)20 else 50} conversations.",
+                "Conversations loaded: ${m.conversations.size}. Up to 500 per view.",
                 fontSize = 12.sp,
                 color = VoxkinBrand.secondary,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
-        if (m.connected && m.messages.any { it.role == "user" || it.role == "assistant" }) {
+        if (m.connected && m.conversationReady) {
             GroupSection(
                 "Selected conversation",
-                "Latest 50 loaded messages. Opening history never plays audio.",
+                "Messages loaded: ${m.messages.size}. Up to 500 per view; refresh returns to the latest page. Opening history never plays audio.",
             ) {
                 GroupAction("Continue in Talk", enabled = enabled) { m.page = 0 }
+                GroupDivider()
+                GroupAction("Refresh conversation", enabled = enabled) { m.refreshConversation() }
+                if (m.messagesHaveMore) {
+                    GroupDivider()
+                    GroupAction("Load older messages", enabled = enabled) { m.loadOlderMessages() }
+                }
             }
             m.messages
                 .filter { it.role == "user" || it.role == "assistant" }
-                .takeLast(50)
                 .forEach { line -> MessageCard(line, agent = line.role == "assistant") }
         }
         Text(

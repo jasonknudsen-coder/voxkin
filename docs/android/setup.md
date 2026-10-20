@@ -76,7 +76,12 @@ provides chat deltas. Only the completed reply is spoken. Speech uses a short
 first clip and prepares one following clip during playback; Stop cancels both.
 Restricted connections may remain final-only depending on their protocol.
 
-History belongs to the gateway, not a vendor-hosted conversation service. Delete
+History belongs to the gateway, not a vendor-hosted conversation service. Rows show
+timestamps/previews when supplied, and mark the current conversation. Use Load more
+conversations and Load older messages to browse additional pages (up to500 per
+view). Refresh conversation returns to the latest messages without playing audio.
+After deleting a conversation, refresh History before continuing through pages.
+Delete
 requires confirmation and affects the selected gateway conversation. Forgetting
 local access is not server-side revocation; revoke a device at the gateway when
 needed.

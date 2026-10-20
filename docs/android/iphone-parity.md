@@ -28,8 +28,8 @@ has shipped on Android. Android uses its own keyboard, permission dialogs,
 accessibility services and on-device recognition implementation.
 
 Still outside this preview: hands-free conversation, owner invitation/approval
-management, camera QR scanner, automatic owner-conversation titles, history
-pagination, response timing panel, conversational receipt feedback and Android
+management, camera QR scanner, automatic owner-conversation titles,
+response timing panel, conversational receipt feedback and Android
 Auto. The iOS CarPlay integration does not automatically confer Android Auto
 support. Returning to the foreground reconnects previously approved saved access and
 restores the scoped conversation without replaying speech or messages.
@@ -68,9 +68,10 @@ This is a source audit plus bounded device tests, not a full parity declaration.
 ### Still different or missing (priority follow-up)
 
 **Conversation continuity:** reconnect now restores the last authorized conversation
-per endpoint/access mode/agent. No automatic stable
-conversation naming, timestamps/previews/selected-row marker, pagination or older
-message loading. History capabilities are not yet independently gated per method.
+per endpoint/access mode/agent. Gateway-provided timestamps/previews, current-row
+marker, conversation pagination and older-message loading are implemented.
+Automatic stable owner-conversation naming and synthesized owner previews remain
+missing. History capabilities are not yet independently gated per method.
 Owner archive filtering now explicitly excludes archived sessions, as on iOS.
 
 **Response experience:** chat delta/status streaming is implemented; persisted
@@ -168,3 +169,30 @@ history/pagination, hands-free, QR setup, and owner phone administration.
 - This is not persisted commentary streaming, spoken progress feedback, Markdown
   display rendering, or full iPhone parity. Android's longer-reply speech policy
   still differs from the iPhone4,000-character cap.
+
+## History details and pagination (0.2.5, 2026-10-20)
+
+- Conversation rows display gateway-provided previews and locally formatted updated
+  timestamps when present. Current conversation is marked explicitly. Restricted
+  customTitle is preferred; previews hide incomplete reply-preference wrappers.
+- Load more conversations uses owner offsets or restricted opaque before cursors.
+  Refresh starts at the newest page. Duplicate conversation IDs are not appended.
+- Load older messages prepends chronological pages while retaining the current
+  latest reply and any unsent draft. Stable nonempty IDs deduplicate; equal text
+  with distinct IDs is not collapsed. Current messages win over overlapping pages.
+- Refresh conversation returns to the latest page without playing speech or
+  discarding a same-context draft. Sending invalidates older-message paging until
+  refreshed, because owner offsets can shift when a new turn is added.
+- Views are bounded to500 conversations/500 messages. At the message cap, the most
+  recent messages are retained. Limits are visible in the UI; this is not unlimited
+  transcript browsing or a claim of large-text accessibility qualification.
+- Deleting resets list pagination and asks for Refresh History, avoiding invalid
+  restricted cursors and shifted owner offsets. A repeated nonadvancing cursor
+  stops further page requests. Cancellation/context guards apply before commits.
+- Independent source review found the deletion-cursor issue; fixed and re-reviewed
+  with no remaining blockers. One read-only reviewer; lead owns edits and device QA.
+  Cockpit remains unavailable because this project is not allowlisted.
+
+Remaining: automatic stable owner naming and preview generation, granular history
+capabilities, persisted commentary/progress feedback, hands-free, QR, owner access
+management and the other explicit platform/experience differences above.

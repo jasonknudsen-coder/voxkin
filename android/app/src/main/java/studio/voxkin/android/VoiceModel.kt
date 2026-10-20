@@ -24,11 +24,11 @@ import java.util.UUID
 import kotlinx.coroutines.*
 import org.json.JSONObject
 
-data class Conversation(val id: String, val title: String, val sessionId: String = "")
+data class Conversation(val id: String, val title: String, val sessionId: String = "", val preview: String = "", val updatedAt: Long = 0)
 
 data class GatewayVoice(val id: String, val name: String, val language: String)
 
-data class ChatLine(val role: String, val text: String)
+data class ChatLine(val role: String, val text: String, val id: String = "")
 
 class VoiceModel @JvmOverloads constructor(
     app: Application, private val automaticConnection: Boolean = true
@@ -97,6 +97,15 @@ class VoiceModel @JvmOverloads constructor(
     var messages by mutableStateOf<List<ChatLine>>(emptyList())
         private set
 
+    var conversationsHaveMore by mutableStateOf(false)
+        private set
+    var messagesHaveMore by mutableStateOf(false)
+        private set
+    private var historyCursor: String? = null
+    private var historyOffset = 0
+    private var messageCursor: String? = null
+    private var messageOffset = 0
+    val selectedConversationId: String get() = if (!connected || !conversationReady) "" else if (restricted) sessionId else session
     var page by mutableIntStateOf(0)
     private var transport: Transport? = null
     private var automaticConnectionSuppressed = false
@@ -394,6 +403,10 @@ class VoiceModel @JvmOverloads constructor(
         gatewaySpeechAvailable = false
         voices = emptyList()
         conversations = emptyList()
+        conversationsHaveMore = false
+        historyCursor = null
+        historyOffset = 0
+        resetMessagePage()
         messages = emptyList()
         agents = emptyList()
         status = "Disconnected. Nothing will be replayed."
@@ -423,17 +436,59 @@ class VoiceModel @JvmOverloads constructor(
         store.put("agent:${credentialKey()}", agent)
     }
 
-    private suspend fun readConversation(id: String): List<ChatLine> {
+    private fun resetMessagePage() {
+        messagesHaveMore = false
+        messageCursor = null
+        messageOffset = 0
+    }
+
+    private suspend fun readConversation(id: String, more: Boolean = false): List<ChatLine> {
         require(if (restricted) runCatching { UUID.fromString(id) }.isSuccess else Protocol.owns(id, agent))
-        val result = transport!!.request(
-            if (restricted) "voxkin.history.messages" else "chat.history",
-            if (restricted) obj("conversationId" to id, "limit" to 50)
-            else obj("sessionKey" to id, "agentId" to agent, "limit" to 50, "offset" to 0, "maxBytes" to 128000),
-        )
+        val current = generation
+        val chosenAgent = agent
+        val before = messageCursor
+        val offset = if (more) messageOffset else 0
+        val params = if (restricted) obj("conversationId" to id, "limit" to 50).apply {
+            if (more && before != null) put("before", before)
+        } else obj("sessionKey" to id, "agentId" to agent, "limit" to 50, "offset" to offset, "maxBytes" to 128000)
+        val result = transport!!.request(if (restricted) "voxkin.history.messages" else "chat.history", params)
+        currentCoroutineContext().ensureActive()
+        check(current == generation && chosenAgent == agent)
         require(result.optJSONArray("messages") != null) { "Missing history messages" }
-        return result.rows("messages").mapNotNull {
+        val rows = result.rows("messages")
+        val nextCursor = result.optString("nextCursor").takeIf { it.isNotBlank() && it != "null" }
+        val nextOffset = result.optInt("nextOffset", offset + rows.size)
+        messageCursor = nextCursor
+        messageOffset = nextOffset
+        messagesHaveMore = if (restricted) nextCursor != null && (!more || nextCursor != before)
+            else result.optBoolean("hasMore", false) && nextOffset > offset
+        return rows.mapNotNull {
             val text = Protocol.text(it)
-            if (text.isBlank()) null else ChatLine(it.optString("role"), text)
+            if (text.isBlank()) null else ChatLine(it.optString("role"), text, it.optString("id"))
+        }
+    }
+
+    fun loadOlderMessages() {
+        if (!messagesHaveMore || !conversationReady || messages.size >= 500) return
+        loadConversationPage(true)
+    }
+
+    fun refreshConversation() {
+        if (!conversationReady) return
+        loadConversationPage(false)
+    }
+
+    private fun loadConversationPage(more: Boolean) {
+        launchHistory {
+            val id = selectedConversationId
+            val loaded = readConversation(id, more)
+            if (id != selectedConversationId) return@launchHistory
+            val currentIds = messages.mapNotNull { it.id.takeIf(String::isNotBlank) }.toSet()
+            val combined = if (more) loaded.filter { it.id.isBlank() || it.id !in currentIds } + messages else loaded
+            val seen = mutableSetOf<String>()
+            messages = combined.filter { it.id.isBlank() || seen.add(it.id) }.takeLast(500)
+            if (messages.size >= 500) messagesHaveMore = false
+            status = if (more) "Older messages loaded. Nothing was played." else "Conversation refreshed. Nothing was played."
         }
     }
 
@@ -441,6 +496,7 @@ class VoiceModel @JvmOverloads constructor(
         val current = generation
         val selectedAgent = agent
         conversationReady = false
+        resetMessagePage()
         messages = emptyList()
         try {
             val saved = JSONObject(store.get("history:${credentialKey()}") ?: "{}").optString(agent)
@@ -502,6 +558,9 @@ class VoiceModel @JvmOverloads constructor(
         launchHistory {
             agent = id
             conversations = emptyList()
+            conversationsHaveMore = false
+            historyCursor = null
+            historyOffset = 0
             draft = ""
             restoreConversation()
         }
@@ -526,6 +585,7 @@ class VoiceModel @JvmOverloads constructor(
         activeRun = run
         streamingText = ""
         busy = true
+        resetMessagePage() // A new turn shifts offset-based history; refresh before loading older pages.
         status = "Waiting for reply…"
         messages = messages + ChatLine("user", text)
         draft = ""
@@ -1076,18 +1136,23 @@ class VoiceModel @JvmOverloads constructor(
         return captured.isNotBlank()
     }
 
-    fun listHistory() {
-        if (!connected || busy || recording || settling) return
+    fun listHistory(more: Boolean = false) {
+        if (!connected || busy || recording || settling || (more && (!conversationsHaveMore || conversations.size >= 500))) return
         launchHistory {
+            val current = generation
+            val chosenAgent = agent
+            val before = historyCursor
+            val offset = if (more) historyOffset else 0
             val r =
                 transport!!.request(
                     if (restricted) "voxkin.history.list" else "sessions.list",
-                    if (restricted) obj("limit" to 20)
+                    if (restricted) obj("limit" to 20).apply { if (more && before != null) put("before", before) }
                     else
                         obj(
                             "agentId" to agent,
                             "search" to "agent:$agent:voxkin:",
                             "limit" to 50,
+                            "offset" to offset,
                             "includeDerivedTitles" to true,
                             "archived" to false,
                             "includeGlobal" to false,
@@ -1097,8 +1162,10 @@ class VoiceModel @JvmOverloads constructor(
                             "excludeSystem" to true,
                         ),
                 )
-            conversations =
-                r.rows(if (restricted) "conversations" else "sessions").mapNotNull { row ->
+            currentCoroutineContext().ensureActive()
+            if (current != generation || agent != chosenAgent) return@launchHistory
+            val rows = r.rows(if (restricted) "conversations" else "sessions")
+            val loaded = rows.mapNotNull { row ->
                     val id = row.optString(if (restricted) "id" else "key")
                     if (
                         if (restricted) runCatching { UUID.fromString(id) }.isFailure
@@ -1108,15 +1175,26 @@ class VoiceModel @JvmOverloads constructor(
                     else
                         Conversation(
                             id,
-                            listOf("label", "autoLabel", "title", "derivedTitle", "displayName")
+                            listOf("label", "customTitle", "autoLabel", "title", "derivedTitle", "displayName")
                                 .map { row.optString(it) }
                                 .firstOrNull { it.isNotBlank() }
                                 ?.let { Protocol.text(obj("role" to "user", "text" to it)) }
                                 ?.takeUnless { it.startsWith("[Voxkin reply preference") }
                                 ?: "Conversation",
                             row.optString("sessionId"),
+                            Protocol.text(obj("role" to "user", "text" to row.optString("preview")))
+                                .takeUnless { it.startsWith("[Voxkin reply preference") }.orEmpty().take(160),
+                            row.optLong("updatedAt", 0),
                         )
                 }
+            val seen = mutableSetOf<String>()
+            conversations = (if (more) conversations + loaded else loaded).filter { seen.add(it.id) }.take(500)
+            val next = r.optString("nextCursor").takeIf { it.isNotBlank() && it != "null" }
+            historyCursor = next
+            historyOffset = offset + rows.size
+            conversationsHaveMore = conversations.size < 500 && if (restricted)
+                next != null && (!more || next != before)
+            else rows.size == 50
         }
     }
 
@@ -1131,6 +1209,7 @@ class VoiceModel @JvmOverloads constructor(
                 } else UUID.randomUUID().toString()
             conversationReady = true
             rememberConversation()
+            resetMessagePage()
             messages = emptyList()
             draft = ""
             page = 0
@@ -1206,6 +1285,7 @@ class VoiceModel @JvmOverloads constructor(
             if (sessionId == c.id.substringAfterLast(':')) {
                 stopAudio()
                 messages = emptyList()
+                resetMessagePage()
                 draft = ""
                 sessionId = if (restricted) "" else UUID.randomUUID().toString()
                 val key = "history:${credentialKey()}"
@@ -1215,6 +1295,11 @@ class VoiceModel @JvmOverloads constructor(
                 conversationReady = true
             }
             conversations = conversations.filter { it.id != c.id }
+            // Deletion invalidates both owner offsets and restricted before cursors.
+            historyCursor = null
+            historyOffset = 0
+            conversationsHaveMore = false
+            status = "Conversation deleted. Refresh History to reload the list."
         }
     }
 

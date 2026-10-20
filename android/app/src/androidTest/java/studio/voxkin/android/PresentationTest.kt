@@ -16,6 +16,35 @@ class PresentationTest {
 
     private fun model(): VoiceModel = ViewModelProvider(ui.activity)[VoiceModel::class.java]
 
+    @Test fun historyShowsSelectedSummaryAndPagingControls() {
+        ui.runOnIdle {
+            val m = model()
+            flag(m, "connected", true)
+            flag(m, "conversationsHaveMore", true)
+            flag(m, "messagesHaveMore", true)
+            @Suppress("UNCHECKED_CAST")
+            fun set(name: String, value: Any) {
+                val field = VoiceModel::class.java.getDeclaredField(name + "$" + "delegate")
+                    .apply { isAccessible = true }.get(m) as MutableState<Any>
+                field.value = value
+            }
+            set("agent", "main")
+            val id = java.util.UUID.randomUUID().toString()
+            VoiceModel::class.java.getDeclaredField("sessionId").apply { isAccessible = true }.set(m, id)
+            set("conversations", listOf(Conversation("agent:main:voxkin:$id", "Weekend plans",
+                preview = "A walk followed by lunch.", updatedAt = 1792521000000)))
+            set("messages", listOf(ChatLine("assistant", "A quiet afternoon sounds good.", "reply")))
+            m.page = 1
+        }
+        ui.onNodeWithText("Current conversation").assertIsDisplayed()
+        ui.onNodeWithText("A walk followed by lunch.").assertIsDisplayed()
+        ui.onNodeWithText("Updated ", substring = true).assertIsDisplayed()
+        ui.onNodeWithText("Load more conversations").performScrollTo().assertIsDisplayed()
+        capture("history-details")
+        ui.onNodeWithText("Refresh conversation").performScrollTo().assertIsDisplayed()
+        ui.onNodeWithText("Load older messages").performScrollTo().assertIsDisplayed()
+    }
+
     @Test fun streamingReplyIsClearlyLabelledAndDisappearsOnCancel() {
         ui.runOnIdle {
             val m = model()
