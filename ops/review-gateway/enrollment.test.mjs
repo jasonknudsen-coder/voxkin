@@ -60,3 +60,40 @@ test('additional review grant configuration fails closed',()=>{
   assert.throws(()=>reviewEnrollment({}, {...c,additionalBootstrapHashes}));
  }
 });
+
+test('permanent Play grant survives restart and Apple expiry without extending Apple devices',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'voxkin-permanent-play-'));
+ let time=Date.now();const apple=randomBytes(32).toString('base64url'),play=randomBytes(32).toString('base64url');
+ const hash=s=>createHash('sha256').update(s).digest('hex');
+ const config={bootstrapHash:hash(apple),permanentPlayBootstrapHash:hash(play),expiresAt:time+60000,now:()=>time};
+ let store=await new AccessStore({stateDir:dir,limits:{maxDevices:3},now:()=>time}).initialize();
+ try {
+  let review=reviewEnrollment(store,config);
+  const a=await review.redeemInvite({secret:apple}),p=await review.redeemInvite({secret:play});
+  assert.equal(a.label,'App reviewer');assert.equal(p.label,'Play reviewer:'+hash(play));
+  assert.equal(review.authenticate(a.deviceSecret).agentId,'review');
+  await store.close();time=config.expiresAt+365*86400_000;
+  store=await new AccessStore({stateDir:dir,limits:{maxDevices:3},now:()=>time}).initialize();
+  review=reviewEnrollment(store,config);
+  assert.equal(review.authenticate(p.deviceSecret).agentId,'review');
+  assert.throws(()=>review.authenticate(a.deviceSecret));await assert.rejects(review.redeemInvite({secret:apple}));
+  const second=await review.redeemInvite({secret:play});assert.notEqual(second.deviceSecret,p.deviceSecret);
+  await assert.rejects(review.redeemInvite({secret:play})); // Same bounded device capacity.
+  await store.revokeDevice({deviceId:second.id});assert.throws(()=>review.authenticate(second.deviceSecret));
+  const rotated=reviewEnrollment(store,{...config,permanentPlayBootstrapHash:hash('replacement')});
+  assert.throws(()=>rotated.authenticate(p.deviceSecret));await assert.rejects(rotated.redeemInvite({secret:play}));
+  // Removing permanent configuration fails closed after the Apple window ends.
+  assert.throws(()=>reviewEnrollment(store,{...config,permanentPlayBootstrapHash:undefined}));
+  const disk=await readFile(join(dir,'access.json'),'utf8');
+  for(const secret of [apple,play,a.deviceSecret,p.deviceSecret])assert.ok(!disk.includes(secret));
+ }finally{await store.close();await rm(dir,{recursive:true,force:true});}
+});
+
+test('permanent Play configuration rejects invalid/colliding grants and unknown device labels',()=>{
+ const c={bootstrapHash:'a'.repeat(64),additionalBootstrapHashes:['b'.repeat(64)],expiresAt:Date.now()+60000};
+ for(const permanentPlayBootstrapHash of [null,{},[],true,42,'bad','a'.repeat(64),'b'.repeat(64)])assert.throws(()=>reviewEnrollment({}, {...c,permanentPlayBootstrapHash}));
+ const store={authenticate:()=>({agentId:'review',label:'Unrecognized reviewer'})};
+ assert.throws(()=>reviewEnrollment(store,{...c,permanentPlayBootstrapHash:'c'.repeat(64)}).authenticate('irrelevant'));
+ const oldPlay={authenticate:()=>({agentId:'review',label:'Play reviewer:'+'c'.repeat(64)})};
+ assert.throws(()=>reviewEnrollment(oldPlay,c).authenticate('irrelevant'));
+});
