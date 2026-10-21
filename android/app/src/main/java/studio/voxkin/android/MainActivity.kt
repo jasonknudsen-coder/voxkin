@@ -1076,6 +1076,7 @@ private fun AccessPanel(m: VoiceModel) {
 
 @Composable
 private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
+    val context = LocalContext.current
     val scanned = m.scannedSetup
     if (scanned != null) AlertDialog(
         onDismissRequest = { m.discardSetupScan() },
@@ -1376,6 +1377,14 @@ private fun SettingsPage(m: VoiceModel, onScanSetup: () -> Unit) {
             }
         }
         GroupSection("Privacy & connection") {
+            GroupAction("Privacy policy") {
+                runCatching {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://voxkin.builderofthings.studio/privacy/")))
+                }.onFailure {
+                    android.widget.Toast.makeText(context, "No browser available. Visit voxkin.builderofthings.studio/privacy/", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+            GroupDivider()
             GroupText(
                 "Address and credentials are encrypted on this phone using Android Keystore. Dictation is on-device. No conversation history is saved locally. Temporary reply audio is deleted after playback. Gateway history follows its own settings."
             )
