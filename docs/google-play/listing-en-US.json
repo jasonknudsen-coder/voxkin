@@ -7,5 +7,5 @@
   "supportEmail": "jason@builderofthings.studio",
   "website": "https://voxkin.builderofthings.studio/",
   "privacyPolicy": "https://voxkin.builderofthings.studio/privacy/",
-  "releaseNotes": "First Android internal-testing candidate. Direct OpenClaw connection, English/Spanish dictation, spoken replies, conversation history, QR setup and approved phone access. Requires your own compatible gateway. No Android Auto support."
+  "releaseNotes": "First public Android release. Talk directly to your own OpenClaw gateway with English/Spanish on-device dictation, spoken replies, conversation history and QR setup. Includes optional response reporting and an in-app privacy-policy link. Requires a compatible gateway; no Android Auto support."
 }

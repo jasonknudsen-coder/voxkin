@@ -2,7 +2,11 @@
 
 ## Status
 
-**0.2.18 (20) is available to internal testers only. No public app release.**
+**0.2.19 (21) production release submitted: In review. Not yet publicly available.**
+Managed publishing is off; full rollout to178countries/regions is queued after approval.
+See [public release qualification](public-release-2026-10-20.md) for current declarations, artifact and evidence.
+
+0.2.18 (20) remains available to the owner-only internal track.
 Play app `studio.voxkin.android`, app ID `4972664749241251932`, was created as a
 free app, matching the approved iPhone pricing. Signed AAB uploaded and Google
 processed it successfully. Internal release1 saved/published; exact track
@@ -27,8 +31,7 @@ symbol archive for bundled dependency. No blocking release error remained.
   screenshot compositing, ratings, awards, price or Android Auto claims.
 - `listing-en-US.json`: Play-length-checked Android copy. Requires own compatible
   gateway; English/Spanish input depends on installed local recognition models.
-- `data-safety-draft.md`, `review-access.md`: worksheets, not submitted attestations
-  or functioning reviewer credentials.
+- `data-safety-draft.md`: historical worksheet; current declarations are recorded in the public release qualification. `review-access.md`: qualified persistent isolated Play access runbook; no credentials in source.
 
 Capture with the isolated test runner and `StoreScreenshotsTest` on an emulator.
 Actual phone data, saved access and private messages were not used. Images were
@@ -36,9 +39,9 @@ visually inspected after capture. Screenshot files are not post-edited.
 
 ## Build/signing
 
-Current candidate:0.2.18 (20), application ID `studio.voxkin.android`, minSdk31,
+Current candidate:0.2.19 (21), application ID `studio.voxkin.android`, minSdk31,
 target/compileSdk36. Release upload key is new and protected outside the repository;
-password is in macOS Keychain. It is **not yet registered with Google Play**.
+password is in macOS Keychain. Its upload certificate is registered with Google Play.
 Do not confuse the upload certificate with Google's eventual app-signing certificate.
 No signing secrets, keystore or password files belong in source control.
 
@@ -68,16 +71,11 @@ apksigner and16KB ZIP alignment. Bundle config declares PAGE_ALIGNMENT_16K.
 Release manifest has no debuggable=true, disallows cleartext, and disables backup.
 Lint:0errors,22warnings,2hints. No clean-lint or Play-review acceptance claim.
 
-## Remaining before public submission
+## Operational follow-up
 
-1. Reporting is live: HTTPS new/duplicate receipt, invalid-schema rejection, synthetic triage/deletion and aged-row purge passed October20. Owner confirmed no Voxkin backup set; live application backup scope excludes reporting storage.
-2. Android-aware privacy changes are live and byte-matched to approved source.
-3. Confirm publisher review-environment retention, access expiry and model-provider
-   processing; create dedicated Play review access and verify Android enrollment,
-   conversation, speech and reconnect. Do not repurpose Apple review credentials.
-4. Finish Data Safety, target audience/content rating, app access and other Console
-   declarations truthfully. Do not default to “Data not collected.”
-5. Internal testing is live for Jason only. Complete physical Play install/migration and app behavior checks before broader distribution; public production release remains separate.
+- Monitor Google automated checks and public review. Submission is not approval.
+- Maintain reviewer capacity/budget and manual publisher report triage; AI does not automatically investigate submitted reports.
+- Physical Pixel debug-to-Play signing migration is separate; do not uninstall without a concrete re-enrollment plan.
 
 ## Review/delegation
 
@@ -92,8 +90,8 @@ allowlist or production-approval configuration was changed to bypass it.
 1 refreshed screenshot fixture and 5 receiver tests passed. Independent review
 verified fixes for emoji truncation and rotation state. Reporting text is memory-only;
 process termination loses references, so cross-process deduplication is not claimed.
-No Pixel install or real report was submitted. Service/site and Play remain unchanged.
+No Pixel install or real report was submitted. Service/site were subsequently deployed and Play submission is recorded above.
 
-Deployment receipt: `.tmp/reporting-deployment/live-receipt.json`. Runtime storage uses private OS permissions; no independently verified provider disk-encryption claim. Provider backup concern was resolved by owner confirmation, not a provider-console inspection. Cloudflare edge peers share conservative rate-limit buckets; client headers are not trusted. Staffed report-review cadence still needs owner assignment before broader rollout.
+Deployment receipt: `.tmp/reporting-deployment/live-receipt.json`. Runtime storage uses private OS permissions; no independently verified provider disk-encryption claim. Provider backup concern was resolved by owner confirmation, not a provider-console inspection. Cloudflare edge peers share conservative rate-limit buckets; client headers are not trusted. Publisher report triage remains a manual operational responsibility.
 
 No Pixel uninstall/install performed. Existing debug signing differs from Play signing: back up connection setup and explicitly plan re-enrollment before replacing the sideloaded app.
