@@ -21,7 +21,7 @@ test('isolated gateway loads source plugin and initializes restricted SDK import
     await Promise.all([home,state,workspace].map(p=>mkdir(p,{recursive:true})));
     const configPath=join(state,'openclaw.json');
     const config={gateway:{mode:'local',bind:'loopback',port,auth:{mode:'token',token:randomBytes(32).toString('hex')},controlUi:{enabled:false}},
-      agents:{defaults:{heartbeat:{every:'0m'}},list:[{id:'guest',workspace}]},
+      agents:{defaults:{heartbeat:{every:'0m'}},entries:{guest:{workspace}}},
       discovery:{mdns:{mode:'off'}},cron:{enabled:false},
       plugins:{allow:['voxkin-local'],load:{paths:[fileURLToPath(new URL('../',import.meta.url))]},
         slots:{memory:'none'},entries:{'voxkin-local':{enabled:true,config:{runtimeDir:join(root,'no-voice-runtime'),access:{enabled:true,stateDir:join(root,'access'),allowedAgents:['guest']}}}}}};

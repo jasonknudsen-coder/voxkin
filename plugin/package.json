@@ -13,6 +13,7 @@
     "requirements.txt",
     "openclaw.plugin.json",
     "README.md",
+    "INSTALL.md",
     "THIRD_PARTY_NOTICES.md",
     "voices.json",
     "LICENSE",
@@ -34,7 +35,7 @@
     "test:setup": "python3.13 -m unittest discover -s test -p \"test_*.py\""
   },
   "peerDependencies": {
-    "openclaw": "2026.9.7"
+    "openclaw": "2026.9.7 || 2026.10.6"
   },
   "openclaw": {
     "extensions": [
