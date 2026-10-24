@@ -36,6 +36,11 @@ including the [native Windows experimental notes](windows-setup.md).
    speech** if you want spoken replies. Tap the Talk microphone, grant iOS permissions,
    speak, then tap again to finish and send.
 
+Use the scanner inside Voxkin, not the system camera, for owner setup. The updated
+helper generates a non-link owner code; update the app before scanning it. Legacy
+owner links can still be deliberately pasted/scanned inside Voxkin, but are no
+longer accepted when opened by another app. Guest invitation links still work.
+
 Keep the owner QR/token private: owner access is broad, not limited to the selected
 agent. Use a restricted invitation for someone else's phone.
 

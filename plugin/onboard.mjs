@@ -60,7 +60,8 @@ export function setupLink(mode, gateway, credential) {
   validateGateway(gateway);
   if (mode === 'invite' && (typeof credential !== 'string' || !/^[A-Za-z0-9_-]{32,256}$/.test(credential))) throw new Error('Invalid invitation credential.');
   if (typeof credential !== 'string' || !credential.trim() || Buffer.byteLength(credential, 'utf8') > 4096 || /[\x00-\x1f\x7f-\x9f]/.test(credential)) throw new Error('Invalid setup credential.');
-  return `voxkin://${mode === 'owner' ? 'setup' : 'join'}#` + new URLSearchParams({gateway, [mode === 'owner' ? 'token' : 'secret']: credential}).toString().replace(/\+/g, '%20');
+  // A non-URI owner code cannot be dispatched to a competing custom-scheme app.
+  return (mode === 'owner' ? 'VOXKIN OWNER 1 ' : 'voxkin://join#') + new URLSearchParams({gateway, [mode === 'owner' ? 'token' : 'secret']: credential}).toString().replace(/\+/g, '%20');
 }
 export async function nativeCli() {
   if(process.platform !== 'win32') return ['openclaw',[]];
@@ -130,7 +131,7 @@ export async function run(options, dependencies = {}) {
       token = await configToken(config, dependencies.loadResolver);
     } else token = await (dependencies.stdin || stdinToken)();
     const qr = await render(setupLink('owner', options.gateway, token));
-    write('OWNER SETUP — sensitive gateway token, not a single-use invite.\nStandard device pairing/approval still applies; scan privately and explicitly Connect.\n' + qr);
+    write('OWNER SETUP — sensitive gateway token, not a single-use invite.\nStandard device pairing/approval still applies; scan inside Voxkin Settings (not the system camera), then explicitly Connect.\nRequires a Voxkin app supporting non-link owner codes; update the app first.\n' + qr);
     return;
   }
   const params = options.mode === 'invite' ? {agentId:options.agent,label:options.label} : options.mode === 'approve' ? {deviceId:options.device} : options.mode === 'cancel' ? {inviteId:options.invite} : {};

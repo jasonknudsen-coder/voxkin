@@ -2,7 +2,7 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
  namespace = "studio.voxkin.android"
  compileSdk = 36
- defaultConfig { applicationId = "studio.voxkin.android"; minSdk = 31; targetSdk = 36; versionCode = 21; versionName = "0.2.19"; testInstrumentationRunner = "studio.voxkin.android.IsolatedTestRunner" }
+ defaultConfig { applicationId = "studio.voxkin.android"; minSdk = 31; targetSdk = 36; versionCode = 22; versionName = "0.2.20"; testInstrumentationRunner = "studio.voxkin.android.IsolatedTestRunner" }
  signingConfigs {
   create("upload") {
    providers.environmentVariable("VOXKIN_UPLOAD_STORE_FILE").orNull?.let { storeFile = file(it) }

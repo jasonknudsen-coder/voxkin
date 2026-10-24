@@ -80,7 +80,10 @@ the phone: compare its pending device ID, then approve it explicitly.
 
 For the first **owner** phone, the helper's separate owner setup code fills gateway
 and bootstrap-token fields, followed by explicit Connect and normal pairing. That
-is broader access, not a restricted invitation, and requires build 5 or later for in-app owner QR scanning.
+is broader access, not a restricted invitation. The updated helper emits non-link
+owner codes; use the updated app's in-app scanner (not the system camera). Legacy
+owner URL codes can still be imported inside the app, but external owner URL
+opening is rejected. Guest invitations keep their short-lived link format.
 See the [quick setup and Tailscale guide](getting-started.md#connect-your-own-phone).
 
 ## Owner: enroll and manage phones
@@ -136,14 +139,21 @@ or message mutations after uncertain outcomes.
 - Atomic serialized state writes; pending approval expires after one hour.
 - Server derives a per-device agent session. Reconnecting resumes that device's
   server conversation; the app displays only the current exchange, not its history.
-- One unsettled agent run per phone, 128 retained runs total, 120-second cancellation
+- One unsettled agent run per phone, 32 retained runs per phone, 128 active runs
+  and 4096 total records as global overload ceilings, 120-second cancellation
   deadline; completed results retained for five minutes. Results do not survive
   plugin/gateway restart. No replay after restart. Idempotency is bounded by that
   retention window and binds the exact text, not just the request ID.
 - Polling at 750ms replaces broadcast subscriptions; no global gateway event feed.
   The first version exposes working/final/error status, not detailed tool progress.
-- HTTP input/body and concurrency limits plus a global request budget provide basic
-  abuse protection, not an Internet-scale multi-tenant quota service. Local speech
+- HTTP authenticated requests have 600/minute and 4 in-flight per phone, with
+  shared ceilings of 6000/minute and 32 in-flight. Enrollment has an independent
+  60/minute, 4-in-flight pool; invalid bearer authentication never reserves body
+  capacity. Fixed windows reset after 60 seconds. Unexpired run records are not
+  evicted to admit new work: a full phone waits for its own retention expiry,
+  while duplicate requests still return their original run. These are basic
+  abuse controls, not an Internet-scale multi-tenant quota service. Edge connection
+  and slow-body controls are still required on publicly reachable hosts. Local speech
   still shares the existing bounded worker capacity.
 - Redirects are refused; credentials and invitation secrets are never put in HTTP
   query strings. Invitations use a URL fragment but remain sensitive in messengers

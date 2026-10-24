@@ -17,12 +17,30 @@ class SetupQrTest {
 
     @Test fun actualQrDecoderRoundTripsOwnerAndRestrictedSetup() {
         val ownerSecret = "synthetic+token/with=punctuation"
-        val owner = Protocol.setup(scan("voxkin://setup#gateway=wss%3A%2F%2Fexample.com&token=" + URLEncoder.encode(ownerSecret, "UTF-8")))
+        val owner = Protocol.setup(scan("VOXKIN OWNER 1 gateway=wss%3A%2F%2Fexample.com&token=" + URLEncoder.encode(ownerSecret, "UTF-8")))
         assertFalse(owner.restricted)
         assertEquals(ownerSecret, owner.secret)
         val guest = Protocol.setup(scan("voxkin://join#gateway=https%3A%2F%2Fexample.com&secret=" + "a".repeat(32)))
         assertTrue(guest.restricted)
         assertEquals("https://example.com", guest.gateway)
+    }
+
+    @Test fun externalIntentsNeverAcceptOwnerCredentialsButKeepGuestInvitations() {
+        val fields = "gateway=wss%3A%2F%2Fexample.com&token=a%2Bb%26%20c%2F%3D%3F%21"
+        for (text in listOf("VOXKIN OWNER 1 " + fields, "voxkin://setup#" + fields)) {
+            assertEquals("a+b& c/=?!", Protocol.setup(text).secret)
+            assertTrue(runCatching { Protocol.externalSetup(text) }.isFailure)
+        }
+        assertTrue(Protocol.externalSetup("voxkin://join#gateway=wss%3A%2F%2Fexample.com&secret=" + "a".repeat(43)).restricted)
+        for (text in listOf("VOXKIN OWNER 2 " + fields,
+            "VOXKIN OWNER 1 gateway=wss://example.com&token=one&token=two",
+            "VOXKIN OWNER 1 gateway=ws://example.com&token=a",
+            "VOXKIN OWNER 1 gateway=wss://example.com&token=%0A",
+            "VOXKIN OWNER 1 gateway=wss://example.com&token=",
+            "VOXKIN OWNER 1 gateway=wss://example.com&token=a&extra=b")) {
+            assertTrue(runCatching { Protocol.setup(text) }.isFailure)
+            assertTrue(runCatching { Protocol.externalSetup(text) }.isFailure)
+        }
     }
 
     @Test fun decodedWebLinksAndMalformedInvitationsAreNotSetup() {

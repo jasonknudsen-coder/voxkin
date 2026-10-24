@@ -110,7 +110,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setupScanPending = savedInstanceState?.getBoolean("setupScanPending") ?: false
         if (setupScanPending || savedInstanceState?.getBoolean("setupFlowActive") == true) model.restoreSetupFlow()
-        if (savedInstanceState == null) intent.dataString?.let { model.stage(it) }
+        if (savedInstanceState == null) intent.dataString?.let { model.stageExternal(it) }
         setContent {
             MaterialTheme(
                 colorScheme =
@@ -132,7 +132,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent.dataString?.let { setupScanPending = false; model.stage(it) }
+        intent.dataString?.let { setupScanPending = false; model.stageExternal(it) }
     }
 
     override fun onStart() {

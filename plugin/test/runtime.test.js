@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm, stat, chmod } from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import plugin from '../index.js';
-import {createRuntime, validateRequest, VOICES} from '../runtime.js';
+import {createRuntime, validateRequest, VOICES, workerEnvironment} from '../runtime.js';
 test('allowlist rejects mismatched language, oversized and extra params', () => {
  for (const p of [{text:'hola',language:'es',voice:'af_heart'},{text:'',language:'en',voice:'af_heart'}, {text:'x'.repeat(4001),language:'en',voice:'af_heart'}, {text:'x',language:'en',voice:'af_heart',path:'/tmp/x'}]) assert.throws(()=>validateRequest(p,VOICES));
  assert.equal(validateRequest({text:'hola',language:'es',voice:'ef_dora'},VOICES).text,'hola');
@@ -90,4 +90,10 @@ test('manifest and shared metadata expose exactly31 supported voices',async()=>{
  assert.equal(VOICES.length,31);assert.equal(new Set(VOICES.map(v=>v.id)).size,31);
  assert.equal(VOICES.filter(v=>v.language==='es').length,3);
  assert.equal(VOICES.filter(v=>v.locale==='en-GB').length,8);
+});
+
+
+test('worker environment allows native OS essentials but strips secrets and Python/loader overrides', () => {
+ const env=workerEnvironment({HOME:'/synthetic/home',Path:'C:\\Windows',SystemRoot:'C:\\Windows',TMPDIR:'/synthetic/tmp',LANG:'en_US.UTF-8',OPENCLAW_GATEWAY_TOKEN:'sentinel',OPENAI_API_KEY:'sentinel',PYTHONPATH:'/evil',PYTHONHOME:'/evil',LD_PRELOAD:'/evil',DYLD_INSERT_LIBRARIES:'/evil',AWS_SECRET_ACCESS_KEY:'sentinel'});
+ assert.deepEqual(env,{HOME:'/synthetic/home',Path:'C:\\Windows',SystemRoot:'C:\\Windows',TMPDIR:'/synthetic/tmp',LANG:'en_US.UTF-8'});
 });

@@ -586,6 +586,12 @@ class VoiceModel @JvmOverloads constructor(
         status = "Setup staged only. Check the gateway, then explicitly ${if(restricted)"Enroll" else "Connect"}."
     }
 
+    fun stageExternal(text: String) {
+        runCatching { Protocol.externalSetup(text) }
+            .onSuccess { scannedSetup = null; applySetup(it) }
+            .onFailure { status = "Open invitations here; scan or paste owner setup inside Voxkin Settings." }
+    }
+
     fun stage(text: String) {
         scannedSetup = null
         runCatching { Protocol.setup(text) }

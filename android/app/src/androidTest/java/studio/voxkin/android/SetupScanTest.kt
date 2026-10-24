@@ -10,7 +10,7 @@ import org.junit.Test
 import java.util.UUID
 
 class SetupScanTest {
-    private val owner = "voxkin://setup#gateway=wss%3A%2F%2Fscanned.example.com&token=synthetic-owner-token"
+    private val owner = "VOXKIN OWNER 1 gateway=wss%3A%2F%2Fscanned.example.com&token=synthetic-owner-token"
     private val guest = "voxkin://join#gateway=https%3A%2F%2Fscanned.example.com&secret=" + "a".repeat(32)
     private fun fixture() = VoiceModel(ApplicationProvider.getApplicationContext<Application>(), false).apply {
         gateway = "wss://scan-test-${UUID.randomUUID()}.example.com"
@@ -77,12 +77,31 @@ class SetupScanTest {
                 m.background()
                 assertNull(m.scannedSetup)
                 m.reviewSetupScan(owner)
-                m.stage(guest)
+                m.stageExternal(guest)
                 assertNull(m.scannedSetup)
                 m.useScannedSetup()
                 assertTrue(m.restricted)
                 assertEquals("", m.token)
                 assertFalse(m.connected)
+            } finally { m.disconnect() }
+        }
+    }
+
+    @Test fun externalOwnerInputNeverChangesCredentialsOrStartsConnection() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val m = fixture(); val previous = m.gateway
+            try {
+                for (code in listOf(owner, owner.replace("VOXKIN OWNER 1 ", "voxkin://setup#"))) {
+                    m.stageExternal(code)
+                    assertEquals(previous, m.gateway)
+                    assertEquals("previous-token", m.token)
+                    assertEquals("previous-invitation", m.invitation)
+                    assertFalse(m.restricted)
+                    assertNull(m.scannedSetup)
+                    assertFalse(m.connected)
+                    assertFalse(m.busy)
+                    assertFalse(m.status.contains("synthetic-owner-token"))
+                }
             } finally { m.disconnect() }
         }
     }

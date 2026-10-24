@@ -5,6 +5,12 @@ import { join, isAbsolute } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 export const venvPython = (root, platform = process.platform) => join(root, '.venv', platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
+// Offline worker needs OS/native-library basics, not gateway/provider secrets or
+// Python/loader injection variables. Windows names are case-insensitive.
+export function workerEnvironment(source = process.env) {
+  const allowed = new Set(['PATH','HOME','USERPROFILE','SYSTEMROOT','WINDIR','TEMP','TMP','TMPDIR','LANG','LC_ALL','LC_CTYPE','LOCALAPPDATA','APPDATA','XDG_CACHE_HOME']);
+  return Object.fromEntries(Object.entries(source).filter(([key,value]) => allowed.has(key.toUpperCase()) && typeof value === 'string'));
+}
 export class PublicError extends Error {}
 export const VOICES = Object.freeze(JSON.parse(readFileSync(new URL('./voices.json', import.meta.url), 'utf8')).map(Object.freeze));
 export function validateRequest(params, voices) {
@@ -83,7 +89,7 @@ async function runWorker(root, request, signal) {
   try {
     await new Promise((resolve, reject) => {
       if (signal.aborted) { reject(new PublicError('Local synthesis cancelled.')); return; }
-      const child = spawn(venvPython(root), ['-X', 'utf8', fileURLToPath(new URL('./worker.py', import.meta.url)), '--models', root, '--output', output], {stdio:['pipe','ignore','ignore']});
+      const child = spawn(venvPython(root), ['-I', '-X', 'utf8', fileURLToPath(new URL('./worker.py', import.meta.url)), '--models', root, '--output', output], {stdio:['pipe','ignore','ignore'], env:workerEnvironment()});
       const abort = () => child.kill('SIGKILL');
       signal.addEventListener('abort', abort, {once:true});
       const timeout = setTimeout(() => child.kill('SIGKILL'), 45_000);

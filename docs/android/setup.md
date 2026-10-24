@@ -26,13 +26,19 @@ still depends on the device and installed language models.
 
 1. Ensure the phone can reach your gateway. For a private tailnet address, install
    Tailscale, join the same authorized tailnet and turn its VPN connection on.
-2. Open Voxkin Settings. Paste an owner setup link or a restricted invitation
+2. Open Voxkin Settings. Scan or paste an owner setup code or a restricted invitation
    supplied by the gateway owner, then stage it. Staging does not send credentials.
 3. Verify the displayed gateway. For owner access, tap Connect and approve the exact
    native device request in the gateway. For guest access, tap Enroll, have the
    owner approve the displayed phone ID, then tap Connect.
-4. Never share setup links in public issues, screenshots, logs or source files.
+4. Never share setup codes or invitation links in public issues, screenshots, logs or source files.
    A restricted guest grant is separate from an operator device grant.
+
+Owner setup codes from the updated helper are non-URI text and require the updated
+app. Scan them inside Voxkin, not the system camera. Legacy owner URLs still work
+when deliberately scanned/pasted inside Voxkin, but both cold-start and already-open
+external intents reject them (even explicit intents). Guest invitation links remain
+supported. Existing paired devices need no new enrollment.
 
 The client requires TLS and rejects redirect-based credential forwarding. Do not
 bypass certificate validation to connect a local test server.

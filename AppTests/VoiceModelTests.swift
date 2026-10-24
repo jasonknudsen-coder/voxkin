@@ -127,7 +127,7 @@ import VoiceCore
     func testOwnerSetupOnlyStagesFieldsWithoutConnectingOrPersisting() throws {
         let model = VoiceModel(restoreConnection: false)
         let host = "setup-" + UUID().uuidString.lowercased() + ".invalid"
-        model.invitationText = "voxkin://setup#gateway=wss%3A%2F%2F" + host + "&token=synthetic%26token"
+        model.invitationText = "VOXKIN OWNER 1 gateway=wss%3A%2F%2F" + host + "&token=synthetic%26token"
         model.importOwnerSetup()
         XCTAssertEqual(model.endpoint, "wss://" + host)
         XCTAssertEqual(model.bootstrap, "synthetic&token")
@@ -135,6 +135,31 @@ import VoiceCore
         XCTAssertFalse(model.connected); XCTAssertFalse(model.busy); XCTAssertFalse(model.requestAdmin)
         XCTAssertNil(try CredentialStore.load("bootstrap|" + model.endpoint))
     }
+    func testExternalOwnerURLCannotReplaceFieldsButGuestInvitationStillStages() throws {
+        let gateway = ControlledGateway()
+        let model = VoiceModel(restoreConnection: false, mockFactory: { gateway })
+        model.endpoint = "wss://existing.invalid"
+        model.bootstrap = "existing-synthetic-token"
+        model.invitationText = "previous-invitation"
+        let owner = URL(string: "voxkin://setup#gateway=wss%3A%2F%2Fattacker.invalid&token=external-synthetic-token")!
+        XCTAssertTrue(model.handleExternalSetupURL(owner))
+        XCTAssertEqual(model.endpoint, "wss://existing.invalid")
+        XCTAssertEqual(model.bootstrap, "existing-synthetic-token")
+        XCTAssertEqual(model.invitationText, "previous-invitation")
+        XCTAssertFalse(model.status.contains("external-synthetic-token"))
+        XCTAssertFalse(model.connected); XCTAssertFalse(model.busy)
+        XCTAssertTrue(gateway.calls.isEmpty)
+        let guest = URL(string: "voxkin://join#gateway=wss%3A%2F%2Fguest.invalid&secret=" + String(repeating: "a", count: 43))!
+        XCTAssertTrue(model.handleExternalSetupURL(guest))
+        XCTAssertEqual(model.invitationText, guest.absoluteString)
+        XCTAssertEqual(model.endpoint, "wss://existing.invalid")
+        XCTAssertEqual(model.bootstrap, "existing-synthetic-token")
+        XCTAssertFalse(model.connected); XCTAssertFalse(model.busy)
+        XCTAssertTrue(gateway.calls.isEmpty)
+        XCTAssertFalse(model.handleExternalSetupURL(URL(string: "https://example.invalid")!))
+        XCTAssertEqual(model.invitationText, guest.absoluteString)
+    }
+
     func testOwnerSetupCannotReplaceSavedRestrictedCredential() throws {
         let target = "wss://setup-" + UUID().uuidString.lowercased() + ".invalid"
         try CredentialStore.save(Data("existing".utf8), "restricted|" + target)

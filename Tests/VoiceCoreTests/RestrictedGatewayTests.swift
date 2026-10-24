@@ -2,6 +2,25 @@ import XCTest
 @testable import VoiceCore
 
 final class RestrictedGatewayTests: XCTestCase {
+    func testOwnerNonURIImportAndExternalDispatchBoundary() throws {
+        let fields = "gateway=wss%3A%2F%2Fexample.com&token=a%2Bb%26%20c%2F%3D%3F%21"
+        let code = "VOXKIN OWNER 1 " + fields
+        XCTAssertEqual(try VoxkinOwnerSetup(code).token, "a+b& c/=?!")
+        XCTAssertTrue(VoxkinSetupCode.accepts(code))
+        XCTAssertTrue(VoxkinSetupCode.accepts("voxkin://setup#" + fields))
+        for text in [code, "voxkin://setup#" + fields, "VOXKIN OWNER 2 " + fields,
+                     "voxkin://join#gateway=wss://example.com&secret=short"] {
+            XCTAssertFalse(VoxkinSetupCode.acceptsExternalURL(text))
+        }
+        XCTAssertTrue(VoxkinSetupCode.acceptsExternalURL("voxkin://join#gateway=wss%3A%2F%2Fexample.com&secret=" + String(repeating: "a", count: 43)))
+        for fields in ["gateway=wss://example.com&token=one&token=two", "gateway=ws://example.com&token=a",
+                       "gateway=wss://example.com&token=%0A", "gateway=wss://example.com&token=",
+                       "gateway=wss://example.com&token=a&extra=b"] {
+            XCTAssertThrowsError(try VoxkinOwnerSetup("VOXKIN OWNER 1 " + fields))
+        }
+        XCTAssertThrowsError(try VoxkinOwnerSetup("VOXKIN OWNER 2 " + fields))
+    }
+
     func testCameraAcceptanceIncludesOwnerAndRestrictedSetupOnly() {
         XCTAssertTrue(VoxkinSetupCode.accepts("voxkin://setup#gateway=wss%3A%2F%2Fexample.com&token=synthetic"))
         XCTAssertTrue(VoxkinSetupCode.accepts("voxkin://join#gateway=wss%3A%2F%2Fexample.com&secret=" + String(repeating:"A",count:43)))

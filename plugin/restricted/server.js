@@ -45,14 +45,21 @@ export function createRestrictedServer({store, runtime, dispatch, allowedAgents,
         identity(secret); return result;
       }
       case 'send': {
-        if (typeof body.text !== 'string' || !body.text.trim() || body.text.length > 16_000 ||
+        if (typeof body.text !== 'string' || !body.text.trim() || /^\s*\//.test(body.text) || body.text.length > 16_000 ||
             typeof body.requestId !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(body.requestId)) deny('INVALID_REQUEST');
         history.owned(d,body.conversationId);
         if(mutations.has(body.conversationId))deny('BUSY');
         prune();
         const previous = [...runs.values()].find(r => r.deviceId === deviceId && r.agentId === d.agentId && r.requestId === body.requestId);
         if (previous) { if (previous.conversationId !== body.conversationId || previous.inputHash !== createHash('sha256').update(body.text).digest('hex')) deny('INVALID_REQUEST'); await previous.admission; identity(secret); return {runId:previous.id}; }
-        if ([...runs.values()].some(r => r.deviceId === deviceId && !r.settled) || runs.size >= 128) deny('BUSY');
+        // Retention is an idempotency promise: never evict an unexpired result to
+        // admit another turn. A full phone waits for its own five-minute window;
+        // it cannot consume another phone's allocation. Active work has its own
+        // ceiling; 4096 is a final multi-device memory overload guard.
+        const retained = [...runs.values()];
+        if (retained.some(r => r.deviceId === deviceId && !r.settled) ||
+            retained.filter(r => r.deviceId === deviceId).length >= 32 ||
+            retained.filter(r => !r.settled).length >= 128 || runs.size >= 4096) deny('BUSY');
         const r = {id:randomUUID(),deviceId,agentId:d.agentId,conversationId:body.conversationId,requestId:body.requestId,controller:new AbortController(),state:'working',text:'',done:false,settled:false,inputHash:createHash('sha256').update(body.text).digest('hex'),updated:now()};
         runs.set(r.id,r);
         r.admission = history.append(d,body.conversationId,'user',body.text,()=>identity(secret));
@@ -93,18 +100,43 @@ export function createRestrictedServer({store, runtime, dispatch, allowedAgents,
   return {request,revoke,async close() { closed = true; for (const r of runs.values()) r.controller.abort(); let timer; try { await Promise.race([Promise.allSettled([...runs.values()].flatMap(r=>[r.admission,r.task]).concat(history.queue)),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Restricted work did not drain; restart required.')),10_000);timer.unref?.();})]); runs.clear(); } finally {clearTimeout(timer);} }};
 }
 
-export function createHttpHandler({store, server}) {
-  let active = 0, windowStart = Date.now(), admissions = 0;
+export function createHttpHandler({store, server, now = Date.now}) {
+  let active = 0, enrollmentActive = 0, windowStart = now(), admissions = 0, enrollmentAdmissions = 0;
+  const devices = new Map();
   return async (req,res) => {
     res.setHeader('Cache-Control','no-store');
     res.setHeader('Content-Type','application/json');
     res.setHeader('X-Content-Type-Options','nosniff');
     const send = (status,value) => { if (!res.writableEnded) { res.statusCode=status; res.end(JSON.stringify(value)); } };
     if (req.method !== 'POST' || req.url?.split('?')[0] !== '/voxkin/v1' || req.url?.includes('?') || req.headers.origin) { send(405,{error:'POST_REQUIRED'}); return true; }
-    if (active >= 32) { send(429,{error:'BUSY'}); return true; }
-    if (Date.now()-windowStart>60_000) { windowStart=Date.now(); admissions=0; }
-    if (++admissions > 600) { send(429,{error:'BUSY'}); return true; }
-    active++;
+    // Authenticate headers before reserving capacity or waiting on an attacker
+    // controlled body. Enrollment has a separate, small pool. No client-supplied
+    // forwarding header participates in identity or quota decisions.
+    let secret, device;
+    if (req.headers.authorization !== undefined) {
+      const match = /^Bearer ([A-Za-z0-9_-]{32,256})$/.exec(req.headers.authorization);
+      if (!match) { send(401,{error:'DENIED'}); return true; }
+      try { device = store.authenticate(match[1]); secret = match[1]; }
+      catch { send(401,{error:'DENIED'}); return true; }
+    }
+    if (now()-windowStart >= 60_000) {
+      windowStart=now(); admissions=0; enrollmentAdmissions=0;
+      for (const [id,q] of devices) { q.count=0; if (!q.active) devices.delete(id); }
+    }
+    let quota;
+    if (device) {
+      const id = device.id ?? device.deviceId;
+      quota = devices.get(id);
+      if (!quota) {
+        if (devices.size >= 10_000) { send(429,{error:'BUSY'}); return true; }
+        quota = {count:0,active:0}; devices.set(id,quota);
+      }
+      if (active >= 32 || quota.active >= 4 || quota.count >= 600 || admissions >= 6000) { send(429,{error:'BUSY'}); return true; }
+      quota.count++; quota.active++; active++; admissions++;
+    } else {
+      if (enrollmentActive >= 4 || enrollmentAdmissions >= 60) { send(429,{error:'BUSY'}); return true; }
+      enrollmentActive++; enrollmentAdmissions++;
+    }
     const timer = setTimeout(()=>req.destroy(),10_000); timer.unref?.();
     try {
       if (!String(req.headers['content-type'] ?? '').startsWith('application/json')) throw new Error();
@@ -113,19 +145,18 @@ export function createHttpHandler({store, server}) {
       clearTimeout(timer);
       const body=JSON.parse(Buffer.concat(chunks).toString('utf8'));
       let result;
-      if(body?.op==='redeem') {
+      if(body?.op==='redeem' && !device) {
         if(Object.keys(body).some(k=>!['op','secret'].includes(k))) throw new Error();
         result=await store.redeemInvite({secret:body.secret});
       } else {
-        const match=/^Bearer ([A-Za-z0-9_-]{32,256})$/.exec(req.headers.authorization ?? '');
-        if(!match) { send(401,{error:'DENIED'}); return true; }
-        result=await server.request(match[1],body);
+        if(!secret) { send(401,{error:'DENIED'}); return true; }
+        result=await server.request(secret,body);
       }
       send(200,result);
     } catch(error) {
       const code = ['BUSY','UNAVAILABLE','INVALID_REQUEST'].includes(error.code) ? error.code : 'DENIED';
       send(code==='BUSY'?429:code==='UNAVAILABLE'?503:403,{error:code});
-    } finally {clearTimeout(timer);active--;}
+    } finally {clearTimeout(timer); if (quota) {active--;quota.active--;} else enrollmentActive--;}
     return true;
   };
 }

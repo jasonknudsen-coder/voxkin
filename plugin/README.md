@@ -171,9 +171,17 @@ text/voice-only limitations. Existing voice RPC methods remain unchanged.
 
 Run in this plugin directory on the gateway host. For source checkouts install
 Node dependencies with `npm ci --ignore-scripts --legacy-peer-deps`. QR encoding
-is local using pinned qrcode 1.5.4; no payload reaches a web QR service. Current
-TestFlight build 3 handles restricted invitations, but owner setup QR scanning
-requires app build 5 or later (build 4 had an owner-code camera filter bug).
+is local using pinned qrcode 1.5.4; no payload reaches a web QR service.
+Owner codes now use non-link text (`VOXKIN OWNER 1 ` plus encoded fields).
+Update Voxkin to the owner-onboarding security release before scanning these codes;
+older apps can still be configured by entering the gateway and token manually.
+Scan owner codes **inside Voxkin Settings**, not with the system camera. Owner
+credentials are never generated as externally dispatchable custom-scheme URLs.
+The app rejects externally opened owner setup URLs, including legacy ones; legacy
+codes remain supported only when deliberately scanned/pasted inside the app.
+Restricted `voxkin://join` invitations remain supported as links and QR codes.
+Treat all owner codes as secrets: non-link formatting prevents custom-scheme
+handoff, not disclosure to anyone who can see/copy the QR.
 
 ### First owner phone
 

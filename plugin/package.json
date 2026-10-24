@@ -1,6 +1,6 @@
 {
   "name": "@voxkin/openclaw-local-voice",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "type": "module",
   "description": "Local voices and opt-in restricted phone access for Voxkin",

@@ -129,13 +129,16 @@ public struct VoxkinInvitation {
     }
 }
 
-/// Owner bootstrap material is only staged by scanning; connecting remains explicit.
+/// For explicit in-app scanning/paste only. External URLs must use acceptsExternalURL.
+/// New owner codes are non-URI text; legacy owner URLs remain importable inside Voxkin.
 public struct VoxkinOwnerSetup {
     public let gateway: URL
     public let token: String
     public init(_ text: String) throws {
+        let prefix = "VOXKIN OWNER 1 "
+        let input = text.hasPrefix(prefix) ? "voxkin://setup#" + text.dropFirst(prefix.count) : text
         guard text.utf8.count <= 8192,
-              let c = URLComponents(string: text), c.scheme == "voxkin", c.host == "setup", c.path.isEmpty,
+              let c = URLComponents(string: input), c.scheme == "voxkin", c.host == "setup", c.path.isEmpty,
               c.user == nil, c.password == nil, c.port == nil, c.query == nil,
               let fragment = c.percentEncodedFragment,
               let parts = URLComponents(string: "https://setup.invalid/?" + fragment)?.queryItems,
@@ -153,6 +156,11 @@ public struct VoxkinOwnerSetup {
 }
 
 public enum VoxkinSetupCode {
+    /// OS-dispatched links may carry only short-lived guest invitations, never owner tokens.
+    public static func acceptsExternalURL(_ value: String) -> Bool {
+        (try? VoxkinInvitation(value)) != nil
+    }
+
     /// Shared camera acceptance policy: parsing never redeems or connects.
     public static func accepts(_ value: String) -> Bool {
         (try? VoxkinInvitation(value)) != nil || (try? VoxkinOwnerSetup(value)) != nil

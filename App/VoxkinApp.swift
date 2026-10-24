@@ -117,8 +117,7 @@ struct VoiceView: View {
         } message: { Text("Remove this conversation from History? You cannot undo this in Voxkin. The gateway may retain agent transcripts or backups.") }
         .onChange(of: model.historyUIContext) { _, _ in showRename = false; showDelete = false; renameTarget = nil; deleteTarget = nil }
         .onOpenURL { url in
-            guard url.scheme == "voxkin" else { return }
-            model.invitationText = url.absoluteString; tab = 1
+            if model.handleExternalSetupURL(url) { tab = 1 }
         }
         .sheet(isPresented: $scanningInvite) {
             InvitationScanner { value in model.invitationText = value; scanningInvite = false }

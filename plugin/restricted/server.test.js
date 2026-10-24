@@ -24,7 +24,7 @@ async function fixture(t, options = {}) {
     async speak(input) { calls.push(['speak', input]); return { audio: 'audio' }; },
   };
   const server = createRestrictedServer({
-    store, runtime, allowedAgents: () => allowed,
+    store, runtime, allowedAgents: () => allowed, now: options.now,
     dispatch: options.dispatch ?? (input => {
       const task = deferred();
       input.signal.addEventListener('abort', () => task.resolve(), { once: true });
@@ -176,4 +176,56 @@ test('HTTP refuses missing auth, excessive body, unknown enrollment fields, and 
   assert.equal(f.store.list().invites.length, 1);
   assert.equal((await post({ op: 'redeem', secret: i.inviteSecret }, { origin: 'https://example.invalid' })).status, 405);
   assert.equal(f.store.list().invites.length, 1); assert.equal(f.calls.length, 0);
+});
+
+
+test('missing and forged credentials cannot spend established-phone HTTP capacity', async t => {
+  const f = await fixture(t); const a = await f.phone('alice'); const url = await f.startHttp();
+  const post = (authorization, body = {op:'hello'}) => fetch(url, {method:'POST', headers:{'content-type':'application/json', ...(authorization ? {authorization} : {})},body:JSON.stringify(body)});
+  for (let i=0; i<610; i++) {
+    const r = await post(i%2 ? `Bearer ${'z'.repeat(43)}` : undefined);
+    assert.ok([401,429].includes(r.status)); await r.arrayBuffer();
+  }
+  const valid = await post(`Bearer ${a.deviceSecret}`);
+  assert.equal(valid.status,200); assert.equal((await valid.json()).deviceId,a.id);
+  // Enrollment remains bounded even though approved phones have a reserved pool.
+  assert.equal((await post(undefined,{op:'redeem',secret:'invalid'})).status,429);
+});
+
+test('one authenticated phone rate limit leaves another phone available', async t => {
+  const f = await fixture(t); const a = await f.phone('alice'); const b = await f.phone('bob'); const url = await f.startHttp();
+  const post = secret => fetch(url,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${secret}`},body:'{"op":"hello"}'});
+  for (let i=0;i<600;i++) {const r=await post(a.deviceSecret);assert.equal(r.status,200);await r.arrayBuffer();}
+  assert.equal((await post(a.deviceSecret)).status,429);
+  assert.equal((await post(b.deviceSecret)).status,200);
+});
+
+test('rejected commands never reserve runs or enter conversation history', async t => {
+  const f = await fixture(t); const a = await f.phone('alice');
+  const conversation = await f.server.request(a.deviceSecret,{op:'history.create'});
+  for(let i=0;i<140;i++) await assert.rejects(f.server.request(a.deviceSecret,{...sendBody(`command-request-${i}`, ' /help'),conversationId:conversation.id}),rejected('INVALID_REQUEST'));
+  assert.equal(f.jobs.length,0);
+  assert.equal((await f.server.request(a.deviceSecret,{op:'history.messages',conversationId:conversation.id})).messages.length,0);
+  await f.server.request(a.deviceSecret,{...sendBody(),conversationId:conversation.id});
+  assert.equal(f.jobs.length,1);
+});
+
+test('success/error retention is per phone, preserves duplicate safety, and expires deterministically', async t => {
+  for(const fail of [false,true]) {
+    let time = 1_000_000, dispatches=0;
+    const f = await fixture(t,{now:()=>time,dispatch:({emit})=>{dispatches++;if(fail)throw new Error('synthetic failure');emit('Answer',true);}});
+    const a = await f.phone('alice'), b = await f.phone('bob');
+    const firstBody = sendBody('retained-request-000');
+    const first = await f.server.request(a.deviceSecret,firstBody);await flush();
+    for(let i=1;i<32;i++){await f.server.request(a.deviceSecret,sendBody(`retained-request-${String(i).padStart(3,'0')}`));await flush();}
+    await assert.rejects(f.server.request(a.deviceSecret,sendBody('retained-request-over')),rejected('BUSY'));
+    assert.deepEqual(await f.server.request(a.deviceSecret,firstBody),first);
+    assert.equal(dispatches,32);
+    await assert.rejects(f.server.request(a.deviceSecret,{...firstBody,text:'different'}),rejected('INVALID_REQUEST'));
+    assert.equal((await f.server.request(a.deviceSecret,{op:'poll',runId:first.runId})).state,fail?'error':'final');
+    await f.server.request(b.deviceSecret,sendBody());await flush();assert.equal(dispatches,33);
+    time += 300_001;
+    await f.server.request(a.deviceSecret,sendBody('after-expiration-001'));await flush();
+    assert.equal(dispatches,34);
+  }
 });

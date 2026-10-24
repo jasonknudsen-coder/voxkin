@@ -199,6 +199,17 @@ enum ReplyLength: String, CaseIterable, Identifiable {
     @Published var inviteLabel = ""
     @Published var shareInvitation = ""
     private var enrollmentTransport: RestrictedGateway?
+    /// OS-dispatched setup is a separate trust boundary from deliberate in-app scan/paste.
+    @discardableResult func handleExternalSetupURL(_ url: URL) -> Bool {
+        guard url.scheme == "voxkin" else { return false }
+        guard VoxkinSetupCode.acceptsExternalURL(url.absoluteString) else {
+            status = "Owner setup must be scanned or pasted inside Voxkin Settings."
+            return true
+        }
+        invitationText = url.absoluteString
+        return true
+    }
+
     func importOwnerSetup() {
         guard !connected, !busy else { return }
         do {

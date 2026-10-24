@@ -54,9 +54,18 @@ object Protocol {
 
     data class Setup(val gateway: String, val secret: String, val restricted: Boolean)
 
+    /** External intents may carry guest invitations only, including explicit intents. */
+    fun externalSetup(text: String): Setup {
+        val parsed = setup(text)
+        require(parsed.restricted) { "Scan or paste owner setup inside Voxkin" }
+        return parsed
+    }
+
+    /** Explicit in-app scan/paste accepts non-URI codes and legacy owner URLs. */
     fun setup(text: String): Setup {
-        require(text.length <= 8192)
-        val u = URI(text)
+        require(text.toByteArray(Charsets.UTF_8).size <= 8192)
+        val prefix = "VOXKIN OWNER 1 "
+        val u = URI(if (text.startsWith(prefix)) "voxkin://setup#" + text.removePrefix(prefix) else text)
         require(
             u.scheme == "voxkin" &&
                 u.host in listOf("join", "setup") &&
@@ -80,7 +89,7 @@ object Protocol {
         val secret = map.getValue(name)
         require(
             if (guest) secret.matches(Regex("[A-Za-z0-9_-]{32,256}"))
-            else secret.isNotEmpty() && secret.length <= 4096 && secret.none { it.isISOControl() }
+            else secret.isNotEmpty() && secret.toByteArray(Charsets.UTF_8).size <= 4096 && secret.none { it.isISOControl() }
         )
         return Setup(gateway, secret, guest)
     }

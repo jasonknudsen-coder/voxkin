@@ -8,14 +8,16 @@ test('explicit owner credential source and strict gateway URL',()=>{
   assert.equal(parseArgs(['owner','--gateway',gateway,'--token-stdin']).mode,'owner');
   for(const url of ['ws://example.test','wss://u:p@example.test','wss://example.test/path','wss://example.test?q=x']) assert.throws(()=>setupLink('owner',url,'secret'));
 });
-test('fragment-only credentials preserve reserved characters and reject controls',()=>{
-  for(const mode of ['owner']) {
-    const url=new URL(setupLink(mode,gateway,'a+b& c/=?!'));
-    assert.equal(url.search,'');
-    assert.equal(url.host,mode==='owner'?'setup':'join');
-    assert.equal(new URLSearchParams(url.hash.slice(1)).get(mode==='owner'?'token':'secret'),'a+b& c/=?!');
-    assert.ok(!url.hash.includes('+'));
-  }
+test('owner QR is non-URI text with exact credential encoding; guest links remain dispatchable',()=>{
+  const payload=setupLink('owner',gateway,'a+b& c/=?!');
+  assert.ok(payload.startsWith('VOXKIN OWNER 1 '));
+  assert.throws(()=>new URL(payload));
+  const fields=new URLSearchParams(payload.slice('VOXKIN OWNER 1 '.length));
+  assert.equal(fields.get('gateway'),gateway);
+  assert.equal(fields.get('token'),'a+b& c/=?!');
+  assert.ok(!payload.includes('+'));
+  const invite=new URL(setupLink('invite',gateway,'a'.repeat(43)));
+  assert.equal(invite.host,'join');assert.equal(invite.search,'');
   for(const value of ['',undefined,'x\ny','x\ty','x\u0085y','é'.repeat(4096)]) assert.throws(()=>setupLink('owner',gateway,value));
 });
 test('safe subprocess argv preserves configured authentication and sanitizes failures',async()=>{
