@@ -69,3 +69,53 @@ QA lane; lead owns integration/releases. Cockpit orchestration/lane registration
 was attempted and rejected because Voxkin is not allowlisted. No allowlist change
 or bypass was made. Independent work overlapped lead implementation/packaging;
 exact overlap duration was not instrumented. Findings: 0, accepted corrections: 0.
+
+## Upload receipts
+
+Source commit: `bf5fd7cfde35a0f45b08d77f8faaecf4476f09c7` (pushed).
+
+- Apple accepted IPA upload without errors; build15 processed VALID and is
+  attached to version1.0.1. Version remains PREPARE_FOR_SUBMISSION.
+  Jason subsequently requested auto-release; release type is AFTER_APPROVAL.
+  Existing review instructions, storefront description and screenshot set inherited;
+  security-update release notes added. No review submission yet.
+- Google Play accepted bundle22 (0.2.20); saved production draft release2 with
+  release notes. Preview has no blocking errors or device-support losses; only
+  optional deobfuscation (R8 disabled) and native-symbol warnings. Prepared100%
+  rollout to existing targeted countries. Public submission remains gated.
+  Final Publishing overview: Managed publishing OFF, one change not yet submitted
+  for review, start full rollout. Google automated quick checks are still running.
+- Plugin0.4.2 tarball is prepared, not installed on any gateway.
+
+Artifact SHA-256:
+
+- IPA: `91f1cd73a0318e9f2dec2be448e66b0c655532e76e6dc0e77fff47573f9a1bd5`
+- AAB: `4283f32efe84459a0f087b24605fca743c163580e58d059e7ac090c2aa2e78ad`
+- APK: `33c7b216e9909b663e586f0e01158d24076b7b5d056aec60420b3e9a723aa95f`
+- Plugin: `092b7440d4865c63edcd326029bb819f4e79e4d56826306f962ff7931f207975`
+
+### Repeatable qualification/upload notes
+
+Use Node24 explicitly (the default Node22 binary currently has a missing dynamic
+library). Use full Xcode via DEVELOPER_DIR. Generate project after updating its
+version source, then archive with the same CarPlay build configuration as released.
+Run simulator tests with separate derivedData; this Xcode test setup needed
+SWIFT_ENABLE_EXPLICIT_MODULES=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES. Archive/export
+used normal release settings. Android unit tests use the Android Studio JDK;
+release signing uses existing protected upload key and Keychain lookup, never
+creates/replaces keys as a recovery measure. Verify signed AAB/APK and source
+package before upload, retain SHA receipts and exact source commit.
+
+Apple upload uses existing App Store Connect API credential with altool, followed
+by API processing-state readback. Relationship PATCH may return HTTP204/no JSON;
+read back the relationship rather than repeating a mutation after empty-body JSON
+parse failure. Stage version, inherited metadata and release notes, attach VALID
+build, and explicitly verify releaseType before any review submission.
+
+The available Android Publisher service identity lacks Voxkin permission (403).
+Use the existing signed-in Play Console stores browser profile; do not change IAM
+or conclude the human login is missing. Stage AAB and notes, save draft and inspect
+validation separately from production submission. Browser CLI upload accepts a
+copy under /tmp/openclaw/uploads. Snapshot after navigation; timed-out clicks may
+already have navigated, so inspect before retrying. Do not infer release approval
+from successful upload, saved draft, or an old production authorization.
