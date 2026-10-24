@@ -4,6 +4,10 @@ export default {
   id:'voxkin-local', name:'Voxkin Local',
   description:'Offline language/voice catalog and speech synthesis',
   register(api) {
+    api.registerCli?.(async ({program}) => {
+      const {registerSetupCli} = await import('./setup.mjs');
+      registerSetupCli(program, {pluginRoot:api.rootDir});
+    }, {descriptors:[{name:'voxkin',description:'Set up, diagnose, and repair local Voxkin voices',hasSubcommands:true}]});
     const runtime = createRuntime(api.pluginConfig ?? {});
     registerRestricted(api, runtime);
     const handler = action => async ({params, respond, signal}) => {

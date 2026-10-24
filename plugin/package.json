@@ -1,6 +1,6 @@
 {
   "name": "@voxkin/openclaw-local-voice",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "private": true,
   "type": "module",
   "description": "Local voices and opt-in restricted phone access for Voxkin",
@@ -27,7 +27,8 @@
     "restricted/history.js",
     "restricted/HISTORY.md",
     "access/windows-files.js",
-    "restricted/windows-dispatch.js"
+    "restricted/windows-dispatch.js",
+    "setup.mjs"
   ],
   "scripts": {
     "test": "node --test test/*.test.js access/*.test.js restricted/*.test.js",
@@ -46,6 +47,10 @@
     },
     "compat": {
       "pluginApi": ">=2026.9.7"
+    },
+    "build": {
+      "openclawVersion": "2026.10.6",
+      "pluginSdkVersion": "2026.10.6"
     }
   },
   "dependencies": {
@@ -54,5 +59,10 @@
   "devDependencies": {
     "jsqr": "1.4.0",
     "pngjs": "5.0.0"
-  }
+  },
+  "bin": {
+    "voxkin-setup": "./setup.mjs"
+  },
+  "homepage": "https://voxkin.builderofthings.studio/downloads/",
+  "author": "Jason Knudsen"
 }

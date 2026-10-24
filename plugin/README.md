@@ -1,9 +1,13 @@
 # Voxkin Local
 
-Gateway plugin for the Voxkin iOS/Android voice client. Version **0.4.2** adds
-security fixes for per-phone resource isolation and owner onboarding.
+Gateway plugin for the Voxkin iOS/Android voice client. Version **0.4.3** adds
+guided setup, read-only diagnostics, and explicit repair with download progress,
+on top of 0.4.2’s per-phone isolation and owner-onboarding security fixes.
 
-**Start with [INSTALL.md](INSTALL.md).** Official downloads and checksums:
+**After installation, run `openclaw voxkin setup`.**
+Use `openclaw voxkin doctor` to check readiness or `openclaw voxkin repair` to repair
+voices with explicit download consent. See [INSTALL.md](INSTALL.md) for prerequisites
+and installation options. Official downloads and checksums:
 https://voxkin.builderofthings.studio/downloads/
 
 - Optional offline English/Spanish speech:28 English and3 Spanish voices.

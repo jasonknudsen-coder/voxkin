@@ -1,9 +1,26 @@
 # Voxkin
 Talk to your agent.
 
-Native iPhone voice-client prototype. Currently connects directly to OpenClaw; other backends are a future direction, not implemented support.
+Native iPhone and Android voice client for your own OpenClaw gateway. Other backends are a future direction, not implemented support.
 
 Start with the [setup and troubleshooting guide](docs/getting-started.md), including Spanish dictation preparation.
+
+## Gateway plugin
+
+Voxkin Local adds optional offline English/Spanish speech and restricted guest-phone
+access. Start with the [plugin installation guide](plugin/INSTALL.md).
+After installation on OpenClaw 2026.10.6:
+
+```sh
+openclaw voxkin setup
+openclaw voxkin doctor
+```
+
+Setup asks before downloading voices, checks real speech, and preserves existing
+settings. `openclaw voxkin repair` offers deliberate repair with progress. Python
+3.13 is required; Linux/Windows remain experimental for this release. See the
+[official download page](https://voxkin.builderofthings.studio/downloads/) for
+available packages; a catalog release under review is not yet installable.
 
 ## Project guides
 - [Current status and remaining work](docs/release-readiness.md)
@@ -21,7 +38,7 @@ SwiftUI app with Talk, History and Settings tabs, a large tap-to-talk control, s
 - Explicit gateway message-TTS provider/fallback acceptance before live turns. No strict-provider or Talk-voice equivalence claim.
 - No transcript/raw-audio files on the phone by default. Gateway history follows gateway settings.
 - Apple recognition must work on-device or visibly fail; typed messages remain available.
-- Phone-only backgrounding disconnects and clears conversation. CarPlay is an opt-in, entitlement-gated implementation (see below), not enabled in the ordinary beta. No public release or App Store submission has occurred.
+- Phone-only backgrounding disconnects and clears conversation. CarPlay is an opt-in, entitlement-gated implementation (see below), not enabled in the ordinary beta. See the current storefront status for release history.
 
 ## Build and test
 Requires full Xcode with an iOS SDK. Do not change global Xcode selection. No third-party packages or project-generator installation required.
@@ -48,7 +65,7 @@ Open `Voxkin.xcodeproj` and run the app. Configure a gateway in **Settings**, th
 Physical installation requires selecting your own signing team in Xcode (not committed), and explicit device testing authorization. There is no provisioning profile, private key, team ID, or real endpoint/token in this repository.
 
 ## Connection setup
-Use an isolated gateway with synthetic-only agent tools/data; use a trusted WSS endpoint reachable over your tailnet. In Settings, enter endpoint and gateway pairing token, and approve the new device separately. Connect saves the address and endpoint-bound token in device-only, non-synchronizing Keychain storage. Reconnect after approval without re-entering the token; the issued device credential replaces the pending bootstrap token. Later launches and foreground returns automatically connect using the saved credential. Explicit Disconnect stays disconnected until a new foreground transition or manual Connect; failed connections are not retried in a loop. Leave the token field blank to reuse the saved credential; an explicitly entered replacement takes priority until successful issuance. Changing addresses clears unsent token input. Forget removes the selected endpoint’s identity, tokens, and remembered address locally. This implementation accepts manual gateway tokens, **not** node QR/setup codes. Provider API keys must never be entered.
+Use an isolated gateway with synthetic-only agent tools/data; use a trusted WSS endpoint reachable over your tailnet. In Settings, enter endpoint and gateway pairing token, and approve the new device separately. Connect saves the address and endpoint-bound token in device-only, non-synchronizing Keychain storage. Reconnect after approval without re-entering the token; the issued device credential replaces the pending bootstrap token. Later launches and foreground returns automatically connect using the saved credential. Explicit Disconnect stays disconnected until a new foreground transition or manual Connect; failed connections are not retried in a loop. Leave the token field blank to reuse the saved credential; an explicitly entered replacement takes priority until successful issuance. Changing addresses clears unsent token input. Forget removes the selected endpoint’s identity, tokens, and remembered address locally. Owner setup accepts manual gateway tokens or Voxkin-specific QR codes scanned inside Voxkin Settings; OpenClaw node-pairing codes are a different format. Provider API keys must never be entered.
 
 Read the gateway's speech-provider/fallback policy before accepting it in the app. Acceptance is remembered per exact gateway URL in this device’s Keychain, can be switched off, and is cleared by Forget local pairing. Revisit acceptance if the gateway’s provider policy changes. Selection of an agent is routing, not per-agent authorization. Stop affects local audio; Cancel requests remote cancellation and cannot undo actions. Forget removes local credentials only; revoke the device on the gateway separately.
 

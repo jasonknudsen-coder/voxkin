@@ -11,6 +11,36 @@ setup = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(setup)
 
 class SetupTests(unittest.TestCase):
+    def test_check_rejects_modifying_flags(self):
+        for flag in ['--install', '--smoke-test', '--container-timestamps', '--repair-dependencies']:
+            with patch('sys.argv', ['setup.py', '--check', flag]), patch('sys.stderr'):
+                with self.assertRaises(SystemExit) as failure:
+                    setup.main()
+                self.assertEqual(failure.exception.code, 2)
+
+    def test_setup_lock_excludes_concurrent_repair_and_releases_on_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(RuntimeError, 'synthetic failure'):
+                with setup.runtime_lock(root):
+                    with self.assertRaisesRegex(RuntimeError, 'retained setup lock'):
+                        with setup.runtime_lock(root):
+                            self.fail('second owner entered')
+                    raise RuntimeError('synthetic failure')
+            self.assertFalse((root / '.setup.lock').exists())
+            with setup.runtime_lock(root):
+                self.assertTrue((root / '.setup.lock').exists())
+
+    def test_setup_lock_never_removes_replacement_owner(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with setup.runtime_lock(root):
+                (root / '.setup.lock').write_text('{"owner":"replacement"}')
+            self.assertTrue((root / '.setup.lock').exists())
+            with self.assertRaisesRegex(RuntimeError, 'retained setup lock'):
+                with setup.runtime_lock(root):
+                    self.fail('stale lock was removed automatically')
+
     def test_platform_opt_in(self):
         setup.validate_platform('Darwin', 'arm64', False)
         setup.validate_platform('Linux', 'x86_64', True)

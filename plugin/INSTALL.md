@@ -1,4 +1,4 @@
-# Install Voxkin Local 0.4.2
+# Install Voxkin Local 0.4.3
 
 This is the gateway-side plugin, not the iOS/Android app. It provides optional
 local speech and separately enrolled, restricted phones. It does not create a
@@ -19,6 +19,50 @@ model-provider credentials. Keep your existing OpenClaw configuration and data.
 - A trusted HTTPS/WSS gateway reachable from the phone. VPN/tailnet configuration
   is separate. Never expose an unprotected operator interface to make setup easy.
 
+## Guided setup (recommended on OpenClaw 2026.10.6)
+
+After installing the plugin through OpenClaw, run on the gateway computer:
+
+```sh
+openclaw voxkin setup
+```
+
+The wizard finds its installed files, checks Python 3.13, asks before downloading
+speech dependencies/model/voices, shows progress, verifies checksums, tests English
+and Spanish, fills only missing speech settings, and attempts plugin reload. It
+preserves existing runtime paths, voice allowlists, guest access and default TTS.
+If activation fails, it reports that separately: downloaded voices do not mean a
+ready gateway. Run from your own terminal, not an agent turn holding the plugin.
+
+If installed disabled and the host does not expose the `voxkin` command yet,
+explicitly enable it with `openclaw plugins enable voxkin-local`, then rerun setup.
+The standalone `node /installed/plugin/path/setup.mjs setup --enable` is also
+available; it asks before enabling unless `--enable` is provided.
+
+```sh
+openclaw voxkin doctor                 # read-only checks
+openclaw voxkin repair                 # asks before downloads/repair
+openclaw voxkin setup --download       # explicit download consent
+openclaw voxkin setup --pair --gateway wss://your-gateway.example
+```
+
+Pairing is optional, only prints in an interactive terminal after setup succeeds,
+and asks before displaying the reusable owner secret. Keep the terminal private.
+No credentials are sent to a QR service. No automatic firewall or TLS changes.
+
+Repair reinstalls Python dependencies and replaces only missing/corrupt model files;
+valid model downloads are reused. A runtime lock prevents overlapping setup/repair.
+If an interrupted operation leaves `.setup.lock`, first confirm all setup and child
+processes have stopped; inspect the lock locally before removing it. Never delete
+it merely to force a second installer through. Doctor reports the lock without
+changing it.
+
+Python 3.13 must already be installed; the wizard explains missing prerequisites,
+not silently installing system software. Linux/Windows still require their
+experimental flags below. For other supported host versions, use the manual
+steps in this guide. Catalog publication/install availability is tracked in the
+repository; do not assume a release under review can be installed yet.
+
 ## 1. Download, verify, and review
 
 Download the versioned `.tgz` and `SHA256SUMS` from
@@ -30,16 +74,16 @@ shasum -a 256 -c SHA256SUMS
 ```
 
 On Linux use `sha256sum -c SHA256SUMS`. On Windows PowerShell use
-`Get-FileHash .\voxkin-openclaw-local-voice-0.4.2.tgz -Algorithm SHA256` and compare
+`Get-FileHash .\voxkin-openclaw-local-voice-0.4.3.tgz -Algorithm SHA256` and compare
 with the checksum file. A checksum detects corruption; it is not an independent
 publisher signature. Use the official HTTPS download origin.
 
 Inspect the archive and extract to a new directory for source review:
 
 ```sh
-tar -tzf voxkin-openclaw-local-voice-0.4.2.tgz
-mkdir voxkin-review-0.4.2
-tar -xzf voxkin-openclaw-local-voice-0.4.2.tgz -C voxkin-review-0.4.2
+tar -tzf voxkin-openclaw-local-voice-0.4.3.tgz
+mkdir voxkin-review-0.4.3
+tar -xzf voxkin-openclaw-local-voice-0.4.3.tgz -C voxkin-review-0.4.3
 ```
 
 Read `package/README.md`, `package/THIRD_PARTY_NOTICES.md` and the source.
@@ -58,7 +102,7 @@ Never run two gateways against the same Voxkin state directory.
 For a first installation:
 
 ```sh
-openclaw plugins install ./voxkin-openclaw-local-voice-0.4.2.tgz --no-enable
+openclaw plugins install ./voxkin-openclaw-local-voice-0.4.3.tgz --no-enable
 ```
 
 Local archives are outside registry trust metadata. If OpenClaw requires source
