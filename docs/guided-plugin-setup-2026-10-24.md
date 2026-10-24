@@ -44,3 +44,11 @@ Prior 0.4.2 website package is public. Shared gateway files are installed but th
 
 - Final Node suite:93 passed,2 opt-in skipped,0 failures; Python setup suite9 passed. Independent final wizard review:16 passed and no remaining blocker found.
 - Package0.4.3 source parity:24 files, SHA256 `9eef7f25968987847a7bb185c314177804f6636e21c6dcb5d287f221c5513867`.
+
+## Publication outcome
+
+- Source implementation commit: `5f620ebc55a50c83df78d460f3c9ab7e2bf31888`, pushed to the now-public repository.
+- GitHub release: https://github.com/jasonknudsen-coder/voxkin/releases/tag/plugin-v0.4.3 . Public anonymous download hash matches the tested archive above; attached checksum and standalone guide.
+- Supported archive installation in fresh isolated state passed. Repeated the full wizard/doctor/reload/settings-preservation/EN+ES gateway speech proof against the installed package, not just the checkout; passed.
+- ClawHub accepted a publish attempt for `@voxkin/openclaw-local-voice@0.4.3`, but the CLI's120-second review wait expired with the attempt still pending. Attempt `zx76eabgsa7rqhh97qn5sxd8cd8gw0q7`. Do not re-upload the same version or announce catalog availability until review completes. Public install command remains unverified while pending.
+- The static website still serves0.4.2. Use the GitHub release for0.4.3 meanwhile. No shared-gateway0.4.3 activation performed.
